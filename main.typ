@@ -170,6 +170,19 @@ srun uv run --directory $SLURM_TMPDIR/my_project "$@"
 // For example: Tiers of GPU memory
 // NvLink connections between GPUs (~600GB/s)
 // NvMesh connections between nodes (~200GB/s)
+
+
+== Dataloader Bottlenecks
+
+== Using the filesystem efficiently
+
+== Job Packing
+
+== Flexible Job Layout
+
+== Tip: Mixing PyTorch and Jax
+
+
 = Case studies
 
 - Real Examples of sub-optimal workflows → diagnostic → fix → Outcome
