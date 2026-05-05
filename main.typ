@@ -16,7 +16,7 @@
   ratio: 25/14, // aspect ratio of the slides, any valid number
   layout: "medium", // one of "small", "medium", "large"
   toc: true,
-  count: "dot", // one of "dot", "dot-section", "number", or none
+  count: "dot-section", // one of "dot", "dot-section", "number", or none
   footer: true,
   theme: "normal",
   // footer-title: "FOOO 2026",
@@ -30,16 +30,25 @@
 
 == What is a Compute cluster, really?
 
+TODO
+
 == Canadian Compute Clusters
 
-== Slurm
+TODO
+
+== Useful Slurm Commands
+
+TODO
 
 == Typical Research Workflow - Mila
 
+TODO
+
 == Assumptions for the rest of the talk
 
+TODO
 
-= Tips & Tricks - Master Slurm and Get results, fast!
+= Slurm tips and tricks
 
 == Easy job submission <job_submission>
 
@@ -59,7 +68,7 @@
   ```
   #colbreak()
 
-  In a terminal:  
+  In a terminal:
   ```console
   $ sbatch job.sh --lr=0.01
   $ sbatch job.sh --lr=0.001
@@ -134,37 +143,152 @@ srun uv run --directory $SLURM_TMPDIR/my_project "$@"
 
 == uv <uv>
 
-== uv + DRAC Clusters
+*A game-changer for Python projects*
 
+Awesome commands:
+- `uv init`
+- `uv add/remove <package>`
+- `uv sync`
+- `uv run <command>`
+
+Not recommended: `uv pip` / `uv venv`. (pip compatibility, no dependency tracking)
+
+Useful global flags / environment variables:
+- `--offline` : Useful on DRAC clusters without internet access on Compute Nodes
+- `--directory` Useful with a Code Checkpointing setup in `$SLURM_TMPDIR`
+
+
+
+== Using uv on DRAC Clusters
+
+// #set text(
+//   size: 8pt
+// )
+
+Can use the DRAC wheelhouse when convenient (for example, `flash-attn`)
+
+```toml
+# pyproject.toml
+[[tool.uv.index]]
+name = "drac-gentoo2023-x86-64-v3"
+url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/x86-64-v3"
+format = "flat"
+explicit = true
+
+[tool.uv.sources]
+# Use the pre-built wheel for flash-attn from the DRAC wheelhouse
+flash-attn = { index = "drac-gentoo2023-generic" }
+```
+
+// ```toml
+// [[tool.uv.index]]
+// name = "drac-gentoo2023-generic"
+// url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/generic"
+// format = "flat"
+// explicit = true
+
+// [[tool.uv.index]]
+// name = "drac-generic"
+// url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/generic"
+// format = "flat"
+// explicit = true
+// ```
+
+== UV advanced tips
+
+- UV can also set environment variables when building a specific package.
+
+  ```toml
+  #pyproject.toml
+  [tool.uv.extra-build-variables]
+  flash-attn = { MAX_JOBS = "1", FLASH_ATTENTION_SKIP_CUDA_BUILD = "0", TORCH_CUDA_ARCH_LIST = "9.0" }
+  ```
+
+#pagebreak()
+
+- UV dependency groups for different CUDA versions:
+
+
+#columns(2)[
+  #set text(
+    size: 9pt
+  )
+  ```toml
+  [project.optional-dependencies]
+  cuda126 = ["torch==2.11.0+cu126"]
+  cuda130 = ["torch==2.11.0+cu130"]
+
+  [tool.uv]
+  conflicts = [[{ extra = "cuda126" },
+                { extra = "cuda130" }]]
+  [tool.uv.sources]
+  torch = [{index="torch-cuda126", extra="cuda126"},
+           {index="torch-cuda130", extra="cuda130"}]
+
+  [[tool.uv.index]]
+  name = "torch-cuda126"
+  url = "https://download.pytorch.org/whl/cu126"
+  explicit = true
+  [[tool.uv.index]]
+  name = "torch-cuda130"
+  url = "https://download.pytorch.org/whl/cu130"
+  explicit = true
+  ```
+
+  #colbreak()
+
+
+  ```bash
+  uv sync --extra=cuda126
+  uv sync --extra=cuda130
+  ```
+
+]
 
 = Interactive Development
 
+TODO
+
 == milatools <milatools>
+
+TODO
 
 == mila code <mila-code>
 
+TODO
+
 == Smart SSH Config Entries: mila-cpu <mila-cpu>
+
+TODO
 
 == Debugging Multi-GPU Jobs
 
-// Slide showing how to use `srun` + attaching the vscode debugger to each task, to have the VsCode debugger attached to each task in a multi-node setup.
+TODO: Slide showing how to use `srun` + attaching the vscode debugger to each task, to have the VsCode debugger attached to each task in a multi-node setup.
 
 
 == Debugging Multi-Node Jobs
 
-// Slide showing how to use `srun` + attaching the vscode debugger to each task, to have the VsCode debugger attached to each task in a multi-node setup.
+TODO: Slide showing how to use `srun` + attaching the vscode debugger to each task, to debug each gpu/node in a multi-node setup.
 
 = Writing Great ML Code
 
 == Einops
 
+TODO
+
 == Jaxtyping
 
+TODO
+
 == Weights & Biases (WandB)
+
+TODO
 
 = Performance Optimization
 
 == Understanding Hardware is Critical!
+
+TODO
 
 // Slides describing the different data transfer bandwidth between the typical components of a compute cluster.
 // For example: Tiers of GPU memory
@@ -174,14 +298,23 @@ srun uv run --directory $SLURM_TMPDIR/my_project "$@"
 
 == Dataloader Bottlenecks
 
+TODO
+
 == Using the filesystem efficiently
+
+TODO
 
 == Job Packing
 
+TODO
+
 == Flexible Job Layout
+
+TODO
 
 == Tip: Mixing PyTorch and Jax
 
+TODO
 
 = Case studies
 
@@ -189,11 +322,20 @@ srun uv run --directory $SLURM_TMPDIR/my_project "$@"
 
 == RL With Simulation on CPU
 
+TODO
+
 == Efficient Checkpointing
+
+TODO
 
 == Test-Driven Debugging of PyTorch CUDA Code
 
+TODO
 
 = Ongoing work and open problems
+
+== AutoResearch
+
+TODO
 
 = Q&A
