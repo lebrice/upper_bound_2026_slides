@@ -34,7 +34,26 @@ TODO
 
 == Canadian Compute Clusters
 
-TODO
+#grid(
+  columns: (30%, 30%, 30%),
+  rows: (auto, auto),
+  gutter: 3pt,
+  [
+    *Mila*
+
+    992 GPUs
+    - Quick access to GPUs
+    - Preemptible
+    - Great for interactive debugging
+  ],
+  [
+    *Tamia*
+
+    308 GPUs (H100/H200)
+  ],
+  "Rorqual",
+
+)
 
 == Useful Slurm Commands
 
