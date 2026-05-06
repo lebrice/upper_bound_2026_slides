@@ -27,9 +27,9 @@
 )
 
 == About this presentation
-This presentation is a collection of tips, tricks, and best practices for efficient research with Slurm compute clusters, based on my experience and the experience of many researchers at Mila.
+This presentation is a collection of tips, tricks, and best practices for efficient research with Slurm compute clusters, based experience and the experience of many researchers at Mila.
 
-There isn't a real narrative thread connecting the different sections.
+There isn't really a real narrative thread connecting the different sections.
 
 Sit back, relax, let information rain down on you, and hopefully you'll find some useful nuggets to take back to your research!
 #quote([
@@ -39,8 +39,18 @@ The code for this presentation can be accessed at #link("https://github.com/lebr
 
 == Intended Audience
 
-This presentation is intended for researchers in AI/ML who have access to Slurm compute clusters.
+This presentation is primarily intended for researchers in AI/ML who have access to Slurm compute clusters.
+
 It can also be useful for the staff of Mila/DRAC/other companies that manage or use compute clusters for researchers.
+
+What this will talk about:
+- How to use Slurm clusters efficiently
+- How to reduce friction in your research workflow
+- How do facilitate performance optimization
+
+What this talk isn't about:
+- In-depth, low-level optimization of ML code
+- Theoretical aspects of parallelism, distributed training, etc.
 
 
 = Introduction
