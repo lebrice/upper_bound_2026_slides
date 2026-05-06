@@ -1,5 +1,6 @@
 // #import "../lib.typ": *
 #import "./diatypst.typ": *
+#import "@preview/fletcher:0.5.8" as fletcher: diagram, node, edge
 
 // Could be nice to annotate code blocks:
 // #import "@preview/codly:1.3.0": *
@@ -25,10 +26,25 @@
   // ... see the docs for more options
 )
 
+== About this presentation
+This presentation is a collection of tips, tricks, and best practices for efficient research with Slurm compute clusters, based on my experience and the experience of many researchers at Mila.
+
+There isn't a real narrative thread connecting the different sections.
+
+Sit back, relax, let information rain down on you, and hopefully you'll find some useful nuggets to take back to your research!
+#quote([
+  The goal of this presentation is to give you useful tips and tricks to increase your productivity and reduce friction in your research workflow with Slurm clusters.
+])
+The code for this presentation can be accessed at #link("https://github.com/lebrice/upper_bound_2026_slides").
+
+== Intended Audience
+
+This presentation is intended for researchers in AI/ML who have access to Slurm compute clusters.
+It can also be useful for the staff of Mila/DRAC/other companies that manage or use compute clusters for researchers.
+
 
 = Introduction
 
-== Intended Audience
 
 == What is a Compute cluster, really?
 
@@ -112,7 +128,6 @@ jobid_c=$(sbatch --parsable job.sh --lr=0.03)
 sbatch --dependency=afterok:$jobid_a,$jobid_b,$jobid_c job.sh --lr=best
 ```
 
-UV is great, I really love it. OMG I LOVE UV I LOVE UV.
 
 == Job Chunking: Get scheduled faster <job_chunking>
 
@@ -136,6 +151,10 @@ done
 
   --> Use `--ntasks=4 --gpus-per-task=1` instead of `--gpus-per-node=4`.
 
+Performance hit is minimal when using `--switches=1`.
+
+Recommendation: Always be flexible, and use `sbatch --switches=1@3600`
+  - Tries to alloca
 
 
 
@@ -318,32 +337,65 @@ TODO
 == Weights & Biases (WandB)
 == Unit tests for ML
 
-== GitHub CI + Slurm Clusters (!!!)
+== (!!) GitHub CI + Slurm Clusters <github_ci_slurm>
 
-(Possibly unique, never seen this done before).
+// (Possibly unique, never seen this done before).
 
-- self-hosted GitHub Runner on a machine with Cluster access via SSH
-  - PR workflow is reviewed and approved by the repo maintainers
-  - Self-hosted runner submits a job on the cluster with `ssh <cluster> sbatch`
-  - Job starts an *ephemeral self-hosted GitHub Runner* on a compute node (with GPUs)
-  - Self-hosted runner runs marked integration tests on the cluster, and reports the results back to GitHub.
+1. Have a self-hosted GitHub Runner on a machine with SSH access to a Cluster
+2. PR workflow is reviewed and approved by the repo maintainers
+3. Self-hosted runner submits a job on the cluster with `ssh <cluster> sbatch`
+4. Job starts an *ephemeral self-hosted GitHub Runner* on a compute node (with GPUs)
+5. GitHub runner on compute node runs tests, results appear on GitHub!
 
 #align(center)[
-#image("github_ci_example.png", width: 90%)
+  #image("github_ci_example.png", width: 90%)
 ]
 
-Example: #ref(<research_template>)
+#align(right)[Example: #ref(<research_template>)]
+
+#pagebreak()
+
+1. Isn't this a security risk?
+  - Somewhat. Repo owners have to approve GitHub workflows manually before they can run.
+  - CI runners act only as the user, no additional permissions.
+
+2. What about MFA authentication?
+  - SSH Multiplexing to preserve manual SSH connections (with MFA) on the machine with initial self-hosted runner.
+    - Hacky, brittle, ill-advised, but it works!
+  - Robot nodes + dedicated SSH keys that only do `sbatch runner_job.sh`
+    - More trouble, more "secure".
+
 
 = Performance Optimization
 
 == Understanding Hardware is Critical!
 
-TODO
+// Bandwidth hierarchy across a typical GPU compute cluster node and between nodes.
+#align(center)[
+  #fletcher.diagram(
+    node-stroke: 0.8pt,
+    spacing: (2.5em, 3em),
 
-// Slides describing the different data transfer bandwidth between the typical components of a compute cluster.
-// For example: Tiers of GPU memory
-// NvLink connections between GPUs (~600GB/s)
-// NvMesh connections between nodes (~200GB/s)
+    // --- Node 1 ---
+    node((0, 0), [GPU 0], fill: blue.lighten(70%)),
+    node((2, 0), [GPU 1], fill: blue.lighten(70%)),
+    edge((0, 0), (2, 0), "<->", label: [~600 GB/s (NvLink)]),
+    node((1, 1), [CPU + RAM], fill: green.lighten(70%)),
+    edge((0, 0), (1, 1), "<->", label: [~32 GB/s (PCIe)]),
+    edge((2, 0), (1, 1), "<->"),
+
+    // --- Node 2 ---
+    node((4, 0), [GPU 2], fill: blue.lighten(70%)),
+    node((6, 0), [GPU 3], fill: blue.lighten(70%)),
+    edge((4, 0), (6, 0), "<->", label: [~600 GB/s (NvLink)]),
+    node((5, 1), [CPU + RAM], fill: green.lighten(70%)),
+    edge((4, 0), (5, 1), "<->"),
+    edge((6, 0), (5, 1), "<->", label: [~32 GB/s (PCIe)]),
+
+    // --- Inter-node ---
+    edge((1, 1), (5, 1), "<->", label: [~200 GB/s (NvMesh / Infiniband)]),
+  )
+]
 
 
 == Dataloader Bottlenecks
