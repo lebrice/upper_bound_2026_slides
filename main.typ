@@ -78,7 +78,7 @@ Interesting info for everyone, even veterans:
   stroke: 1pt,
   columns: 8,
   align: (auto, center, right, right, right, right, auto, auto),
-  [Cluster],    [CPU/GPU#linebreak()Nodes],[CPUs], [GPUs],              [H100-eq.],[Storage],[Internet?], [Full Node?],
+  [Cluster],    [#text([CPU/GPU Nodes], size:0.7em)],[#underline("CPUs")], [GPUs],              [#underline("H100-eq.")],[Storage],[Internet?], [Full Node?],
   [Mila],       [12 / 190],     [11448],    [992 (mixed)],       [\~500],   [2 PB],   [*Yes*], [No],
   [Rorqual],    [686 / 93],     [137664],   [372 H100],          [372],     [*69 PB*],  [No], [No],
   [Fir],        [872 / 160],    [175104],   [640 H100],          [640],     [51 PB],  [*Yes*], [No],
@@ -89,7 +89,7 @@ Interesting info for everyone, even veterans:
   [Trillium],   [*1224* / 63],  [*241056*], [640 H100],         [640],     [29 PB],   [No], [Yes],
 )
 
-- Mila cluster has preemption.
+- Mila cluster has preemptible long jobs and limited non-preemptible short jobs.
 
 == Useful Slurm Commands
 
