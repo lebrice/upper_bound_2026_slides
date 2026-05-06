@@ -82,6 +82,7 @@ jobs:
       #     path: ./coverage.xml
 
   launch-slurm-runner:
+    name: Submit gh-runner job to ${{ matrix.cluster }}
     needs: [unit_tests]
     # runs-on: self-hosted
     runs-on: ubuntu-latest
@@ -112,7 +113,7 @@ jobs:
 
   # This step runs in a self-hosted Github Actions runner inside a SLURM job on the compute node of the cluster.
   cluster_integration_tests:
-    name: Run integration tests on the ${{ matrix.cluster }} cluster in job ${{ needs.launch-slurm-actions-runner.outputs.job_id}}
+    name: Run tests on a ${{ matrix.cluster }} compute node.
     needs: [launch-slurm-runner]
     # runs-on: ["self-hosted", "${{ matrix.cluster }}"]
     runs-on: ubuntu-latest # fixme
