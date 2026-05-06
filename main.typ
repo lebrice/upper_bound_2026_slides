@@ -27,28 +27,31 @@
 )
 
 == About this presentation
-This presentation is a collection of tips, tricks, and best practices for efficient research with Slurm compute clusters, based experience and the experience of many researchers at Mila.
+This presentation is a collection of tips, tricks, and best practices for efficient research with Slurm compute clusters, based on the experience of Mila's IDT team and of many researchers at Mila.
 
-There isn't really a real narrative thread connecting the different sections.
+There isn't really a narrative thread that connects the different sections.
 
 Sit back, relax, let information rain down on you, and hopefully you'll find some useful nuggets to take back to your research!
 #quote([
   The goal of this presentation is to give you useful tips and tricks to increase your productivity and reduce friction in your research workflow with Slurm clusters.
 ])
-The code for this presentation can be accessed at #link("https://github.com/lebrice/upper_bound_2026_slides").
+The code for this presentation is available at #link("https://github.com/lebrice/upper_bound_2026_slides").
 
 == Intended Audience
 
-This presentation is primarily intended for researchers in AI/ML who have access to Slurm compute clusters.
+This presentation is aimed at researchers in AI/ML who have access to Slurm compute clusters.
 
-It can also be useful for the staff of Mila/DRAC/other companies that manage or use compute clusters for researchers.
+It can also be useful for the staff of companies that manage or use compute clusters for research.
 
-What this will talk about:
+What this talk is about:
+
 - How to use Slurm clusters efficiently
 - How to reduce friction in your research workflow
 - How do facilitate performance optimization
 
-What this talk isn't about:
+
+What this talk is *not* about:
+
 - In-depth, low-level optimization of ML code
 - Theoretical aspects of parallelism, distributed training, etc.
 
@@ -56,44 +59,63 @@ What this talk isn't about:
 = Introduction
 
 
-== What is a Compute cluster, really?
+== What is a Compute cluster, really? <switches>
 
-TODO
+TODO: Slide describing the nodes / switches / storage servers.
 
-== Canadian Compute Clusters
+Interesting info for everyone, even veterans:
+- Relative bandwidth of different communication paths (intra-node GPU-GPU, intra-node GPU-CPU, inter-node GPU-CPU, inter-node CPU-CPU)
+- Intro to "switches", impact in distributed jobs (controlled somewhat with `--switches` of sbatch)
+- Distributed filesystem implications:
+  - Filesystem striping across multiple storage servers --> Higher throughput for large datasets
+  - But also higher latency for small files --> Implications for checkpointing, logging, etc.
 
-#grid(
-  columns: (30%, 30%, 30%),
-  rows: (auto, auto),
-  gutter: 3pt,
-  [
-    *Mila*
-    992 GPUs
-    - Quick access to GPUs
-    - Preemptible
-    - Great for interactive debugging
-  ],
-  [
-    *Tamia*
 
-    308 GPUs (H100/H200)
-  ],
-  "Rorqual",
 
+== Canadian Compute Clusters <clusters>
+
+#table(
+  stroke: 1pt,
+  columns: 8,
+  align: (auto, center, right, right, right, right, auto, auto),
+  [Cluster],    [CPU/GPU#linebreak()Nodes],[CPUs], [GPUs],              [H100-eq.],[Storage],[Internet?], [Full Node?],
+  [Mila],       [12 / 190],     [11448],    [992 (mixed)],       [\~500],   [2 PB],   [*Yes*], [No],
+  [Rorqual],    [686 / 93],     [137664],   [372 H100],          [372],     [*69 PB*],  [No], [No],
+  [Fir],        [872 / 160],    [175104],   [640 H100],          [640],     [51 PB],  [*Yes*], [No],
+  [Nibi],       [710 / 42],     [140928],   [288 H100],          [288],     [25 PB],  [*Yes*], [No],
+  [Tamia],      [8 / 65],       [3824],     [212 H100 + 96 H200],[\~315],   [? PB],   [No], [Yes],
+  [Killarney],  [0 / 178],      [11232],    [672 L40S + 80 H100],[\~652],   [2 PB],   [Yes?], [No],
+  [Vulcan],     [0 / *252*],    [16128],    [1008 L40S],         [*\~858*],   [5 PB],   [No], [No],
+  [Trillium],   [*1224* / 63],  [*241056*], [640 H100],         [640],     [29 PB],   [No], [Yes],
 )
+
+- Mila cluster has preemption.
 
 == Useful Slurm Commands
 
-TODO
+- *`sbatch`* `--ntasks=4 --gpus=4 --cpus-per-task=16 --mem=32G --time=03:00:00 job.sh`
+  - Requests resources (GPUs, CPUs, RAM) for one or more _*tasks*_ and runs a job script (`job.sh`) on one or more of the cluster's compute nodes.
+- *`salloc`* `--ntasks=4 --gpus=4 --cpus-per-task=16 --mem=32G --time=03:00:00`
+  - Similar to sbatch, but allocates resources and gives you an interactive shell on the compute node.
+  - Useful for debugging, testing, etc.
+
+- *`srun`* `python main.py`
+  - Runs a "command" (e.g. `python main.py`) once per _*task*_ inside a job.
+  - (Can also be used to create jobs, but we don't recommend it)
+
 
 == Typical Research Workflow - Mila
 
-TODO
+1. `mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
+  - Requests an interactive job on the Mila cluster with `salloc` and requested resources;
+  - Waits for job to start;
+  - Opens `my_project` folder in VSCode with Remote-SSH connected to the compute node.
 
+2. Develop code iteratively, using the VSCode terminal (inside compute node) to run commands.
 
-TODO
+3. Once the code is ready, submit a batch job with `sbatch` to run the code on more GPUs, for longer, etc.
 
-
+4. Move to other cluster if necessary, use same loop (with `--cluster=<cluster>`).
 
 = Slurm tips and tricks
 
@@ -157,23 +179,31 @@ done
 
 == Flexible Job Layout
 
-- On clusters that don't enforce full-node allocations, being flexible about where the GPUs are laid out can help your jobs get scheduled faster!
+On clusters that don't enforce full-node allocations (See #ref(<clusters>, supplement: "clusters")), being flexible about where the GPUs are laid out can help your jobs get scheduled faster!
 
-  --> Use `--ntasks=4 --gpus-per-task=1` instead of `--gpus-per-node=4`.
+*Suggestion*
 
-Performance hit is minimal when using `--switches=1`.
+- Go from this: `sbatch --nodes=2 --ntasks-per-node=4 --gpus-per-task=1 job.sh`
+  - Asks for two full nodes with 4 GPUs each
+  - Can take a long time to schedule
 
-Recommendation: Always be flexible, and use `sbatch --switches=1@3600`
-  - Tries to alloca
+- To this: `sbatch `*`--nodes=1-8 --ntasks=8 --switches=1`*` --gpus-per-task=1 job.sh`
+  - Asks for 8 tasks with 1 GPU each, spread across 1 to 8 nodes, but preferably on a single switch
+  - Performance hit is minimized when using `--switches=1`. (Recall: #ref(<switches>, supplement: "switches"))
 
+#linebreak()
+
+*Recommendations*
+- Be as flexible as possible, and use `sbatch --switches=1@3600`
+- Monitor the throughput degradation, find sweet-spot.
 
 
 == Checkpointing <checkpointing>
 
-Checkpointing is *crucial*!
-- Support for clusters with preemption (Mila cluster)
-- Breaking up long jobs into smaller chunks (#ref(<job_chunking>))
-- Being resilient to failures (e.g. hardware failure, software bugs, etc.)
+Proper checkpointing is *crucial*!
+- Support for clusters with preemption (only Mila cluster)
+- Enables breaking up long jobs into smaller chunks (#ref(<job_chunking>))
+- Makes jobs resilient to failures (e.g. hardware failure, software bugs, etc.)
 
 == Code Checkpointing <code_checkpointing>
 
