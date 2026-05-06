@@ -319,6 +319,7 @@ TODO
   - When executed, this job *itself* starts an ephemeral self-hosted GitHub Runner on a compute node
   - Self-hosted runner runs marked integration tests on the cluster, and reports the results back to GitHub.
 
+#image("github_ci_example.png", width: 400pt)
 
 = Performance Optimization
 

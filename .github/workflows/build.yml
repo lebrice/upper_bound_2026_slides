@@ -106,6 +106,8 @@ jobs:
       #   # TODO: Hard-coded mila-specific GPU to use for running tests.
       #   # This isn't great, but currently necessary for reproducibility tests.
       #   # Output the job ID to a file so that the next step can use it.
+      #   env:
+      #     SLURM_CLUSTER_NAME: ${{ matrix.cluster }}
       #   run: |
       #     job_id=`ssh ${{ matrix.cluster }} 'cd $SCRATCH && sbatch --gpus=rtx8000:1 --parsable $HOME/launch_actions_runner.sh'`
       #     echo "Submitted job $job_id on the ${{ matrix.cluster }} cluster!"
