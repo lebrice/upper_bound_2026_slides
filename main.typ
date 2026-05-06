@@ -16,7 +16,7 @@
   ratio: 25/14, // aspect ratio of the slides, any valid number
   layout: "medium", // one of "small", "medium", "large"
   toc: true,
-  count: "dot-section", // one of "dot", "dot-section", "number", or none
+  count: "dot", // one of "dot", "dot-section", "number", or none
   footer: true,
   theme: "normal",
   // footer-title: "FOOO 2026",
@@ -27,6 +27,8 @@
 
 
 = Introduction
+
+== Intended Audience
 
 == What is a Compute cluster, really?
 
@@ -40,7 +42,6 @@ TODO
   gutter: 3pt,
   [
     *Mila*
-
     992 GPUs
     - Quick access to GPUs
     - Preemptible
@@ -63,9 +64,10 @@ TODO
 
 TODO
 
-== Assumptions for the rest of the talk
 
 TODO
+
+
 
 = Slurm tips and tricks
 
@@ -110,7 +112,9 @@ jobid_c=$(sbatch --parsable job.sh --lr=0.03)
 sbatch --dependency=afterok:$jobid_a,$jobid_b,$jobid_c job.sh --lr=best
 ```
 
-== Job Chunking: Break up long jobs to get scheduled faster <job_chunking>
+UV is great, I really love it. OMG I LOVE UV I LOVE UV.
+
+== Job Chunking: Get scheduled faster <job_chunking>
 
 Easy Job chain!
 
@@ -159,6 +163,8 @@ srun --ntasks-per-node=1 --ntasks=$SLURM_JOB_NUM_NODES bash -e <<END
 END
 srun uv run --directory $SLURM_TMPDIR/my_project "$@"
 ```
+
+= UV
 
 == uv <uv>
 
@@ -234,43 +240,41 @@ flash-attn = { index = "drac-gentoo2023-generic" }
   )
   ```toml
   [project.optional-dependencies]
-  cuda126 = ["torch==2.11.0+cu126"]
+  cuda128 = ["torch==2.11.0+cu128"]
   cuda130 = ["torch==2.11.0+cu130"]
 
   [tool.uv]
-  conflicts = [[{ extra = "cuda126" },
+  conflicts = [[{ extra = "cuda128" },
                 { extra = "cuda130" }]]
   [tool.uv.sources]
-  torch = [{index="torch-cuda126", extra="cuda126"},
+  torch = [{index="torch-cuda128", extra="cuda128"},
            {index="torch-cuda130", extra="cuda130"}]
 
   [[tool.uv.index]]
-  name = "torch-cuda126"
-  url = "https://download.pytorch.org/whl/cu126"
+  name = "torch-cuda128"
+  url = "https://download.pytorch.org/whl/cu128"
   explicit = true
   [[tool.uv.index]]
   name = "torch-cuda130"
   url = "https://download.pytorch.org/whl/cu130"
   explicit = true
   ```
-
   #colbreak()
 
-
   ```bash
-  uv sync --extra=cuda126
+  uv sync --extra=cuda128
   uv sync --extra=cuda130
   ```
-
 ]
 
-= Interactive Development
 
-TODO
+= Interactive Development and Debugging
 
 == milatools <milatools>
 
 TODO
+
+#read("foo.typ")
 
 == mila code <mila-code>
 
@@ -289,6 +293,9 @@ TODO: Slide showing how to use `srun` + attaching the vscode debugger to each ta
 
 TODO: Slide showing how to use `srun` + attaching the vscode debugger to each task, to debug each gpu/node in a multi-node setup.
 
+== Profiling with TensorBoard + Torch Profiler
+
+
 = Writing Great ML Code
 
 == Einops
@@ -300,8 +307,18 @@ TODO
 TODO
 
 == Weights & Biases (WandB)
+== Unit tests for ML
 
-TODO
+== GitHub CI + Slurm Clusters (!!!)
+
+(Truly unique, never seen this done before).
+
+- self-hosted GitHub Runner on a machine with Cluster access via SSH
+  - PR workflow is reviewed and approved by the repo maintainers
+  - Self-hosted runner submits a job on the cluster with `ssh <cluster> sbatch`
+  - When executed, this job *itself* starts an ephemeral self-hosted GitHub Runner on a compute node
+  - Self-hosted runner runs marked integration tests on the cluster, and reports the results back to GitHub.
+
 
 = Performance Optimization
 
@@ -334,6 +351,7 @@ TODO
 == Tip: Mixing PyTorch and Jax
 
 TODO
+
 
 = Case studies
 
