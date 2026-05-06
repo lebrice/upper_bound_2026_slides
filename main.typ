@@ -16,7 +16,7 @@
   ratio: 25/14, // aspect ratio of the slides, any valid number
   layout: "medium", // one of "small", "medium", "large"
   toc: true,
-  count: "dot", // one of "dot", "dot-section", "number", or none
+  count: "number", // one of "dot", "dot-section", "number", or none
   footer: true,
   theme: "normal",
   // footer-title: "FOOO 2026",
@@ -130,6 +130,14 @@ for i in $(seq 2 $num_chunks); do
 done
 ```
 
+== Flexible Job Layout
+
+- On clusters that don't enforce full-node allocations, being flexible about where the GPUs are laid out can help your jobs get scheduled faster!
+
+  --> Use `--ntasks=4 --gpus-per-task=1` instead of `--gpus-per-node=4`.
+
+
+
 
 == Checkpointing <checkpointing>
 
@@ -225,8 +233,10 @@ flash-attn = { index = "drac-gentoo2023-generic" }
 
   ```toml
   #pyproject.toml
-  [tool.uv.extra-build-variables]
-  flash-attn = { MAX_JOBS = "1", FLASH_ATTENTION_SKIP_CUDA_BUILD = "0", TORCH_CUDA_ARCH_LIST = "9.0" }
+  [tool.uv.extra-build-variables.flash-attn]
+  MAX_JOBS = "1"
+  FLASH_ATTENTION_SKIP_CUDA_BUILD = "0"
+  TORCH_CUDA_ARCH_LIST = "9.0"
   ```
 
 #pagebreak()
@@ -274,7 +284,6 @@ flash-attn = { index = "drac-gentoo2023-generic" }
 
 TODO
 
-#read("foo.typ")
 
 == mila code <mila-code>
 
@@ -311,15 +320,19 @@ TODO
 
 == GitHub CI + Slurm Clusters (!!!)
 
-(Truly unique, never seen this done before).
+(Possibly unique, never seen this done before).
 
 - self-hosted GitHub Runner on a machine with Cluster access via SSH
   - PR workflow is reviewed and approved by the repo maintainers
   - Self-hosted runner submits a job on the cluster with `ssh <cluster> sbatch`
-  - When executed, this job *itself* starts an ephemeral self-hosted GitHub Runner on a compute node
+  - Job starts an *ephemeral self-hosted GitHub Runner* on a compute node (with GPUs)
   - Self-hosted runner runs marked integration tests on the cluster, and reports the results back to GitHub.
 
-#image("github_ci_example.png", width: 400pt)
+#align(center)[
+#image("github_ci_example.png", width: 90%)
+]
+
+Example: #ref(<research_template>)
 
 = Performance Optimization
 
@@ -345,10 +358,6 @@ TODO
 
 TODO
 
-== Flexible Job Layout
-
-TODO
-
 == Tip: Mixing PyTorch and Jax
 
 TODO
@@ -371,6 +380,10 @@ TODO
 TODO
 
 = Ongoing work and open problems
+
+== Research Template Repository <research_template>
+
+TODO
 
 == AutoResearch
 
