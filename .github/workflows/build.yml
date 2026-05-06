@@ -113,7 +113,7 @@ jobs:
   # This step runs in a self-hosted Github Actions runner inside a SLURM job on the compute node of the cluster.
   cluster_integration_tests:
     name: Run integration tests on the ${{ matrix.cluster }} cluster in job ${{ needs.launch-slurm-actions-runner.outputs.job_id}}
-    needs: [launch-slurm-unner]
+    needs: [launch-slurm-runner]
     runs-on: ["self-hosted", "${{ matrix.cluster }}"]
     timeout-minutes: 30
     strategy:
