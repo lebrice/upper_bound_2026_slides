@@ -506,7 +506,6 @@ Pair with #ref(<jaxtyping>) for shape-checked tensors!
 
 - Works for Jax / PyTorch / NumPy, etc
 
-
 ```python
 from jaxtyping import Float
 from torch import Tensor
