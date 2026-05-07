@@ -459,11 +459,11 @@ Example: patchifying an image batch for a Vision Transformer.
   ```python
   import torch
 
-  def patchify(images, p):
+  def patchify(images: torch.Tensor, p: int):
       B, C, H, W = images.shape
       x = images.reshape(B, C, H // p, p, W // p, p)
       x = x.permute(0, 2, 4, 3, 5, 1).contiguous()
-      x = x.reshape(B, (H // p) * (W // p), p * p * C)
+      x = x.reshape(B, (H//p) * (W//p), p*p*C)
       return x
   ```
   #colbreak()
@@ -472,7 +472,7 @@ Example: patchifying an image batch for a Vision Transformer.
   ```python
   from einops import rearrange
 
-  def patchify(images, p):
+  def patchify(images: torch.Tensor, p: int):
       return rearrange(
           images,
           "b c (h p1) (w p2) -> b (h w) (p1 p2 c)",
@@ -484,41 +484,125 @@ Example: patchifying an image batch for a Vision Transformer.
 
 #pagebreak()
 
-`einops` also replaces `view` / `transpose` chains in multi-head attention, channel-shuffle, etc.
+Also very useful:
 
-#set text(size: 9pt)
-#columns(2)[
-  Without einops:
-  ```python
-  # split heads
-  B, N, D = q.shape
-  q = q.reshape(B, N, H, D // H).transpose(1, 2)
-  k = k.reshape(B, N, H, D // H).transpose(1, 2)
-  v = v.reshape(B, N, H, D // H).transpose(1, 2)
-  # ... attention ...
-  out = out.transpose(1, 2).reshape(B, N, D)
-  ```
-  #colbreak()
+- `einops.reduce(x, "b c h w -> b c", "mean")`
+- `einops.repeat(x, "h w -> h w c", c=3)`
+- `einops.einsum`
+- `einops` Layers! (`Rearrange`, `Reduce`, `EinMix`), which can be used in `nn.Sequential` blocks, etc.
+- And lots more!
 
-  With einops:
-  ```python
-  from einops import rearrange
+Check out the docs at https://einops.rocks/ for more examples and use cases.
 
-  q = rearrange(q, "b n (h d) -> b h n d", h=H)
-  k = rearrange(k, "b n (h d) -> b h n d", h=H)
-  v = rearrange(v, "b n (h d) -> b h n d", h=H)
-  # ... attention ...
-  out = rearrange(out, "b h n d -> b n (h d)")
-  ```
-]
-#set text(size: 11pt)
 
-Also useful: `reduce(x, "b c h w -> b c", "mean")`, `repeat(x, "h w -> h w c", c=3)`, and `einops.einsum` for named-axis contractions. Pair with #ref(<jaxtyping>) for shape-checked tensors.
+Pair with #ref(<jaxtyping>) for shape-checked tensors!
+
+
+
 
 == Jaxtyping <jaxtyping>
 
-TODO: Slide showing a function with jaxtyping annotations that match the einops patterns used in the function, and how this improves readability and maintainability.
+`jaxtyping` adds shape + dtype to tensor type hints.
 
+- Works for Jax / PyTorch / NumPy, etc
+
+
+```python
+from jaxtyping import Float
+from torch import Tensor
+
+# Accepts floating-point 2D arrays with matching axes
+def matrix_multiply(x: Float[Tensor, "dim1 dim2"],
+                    y: Float[Tensor, "dim2 dim3"]
+                  ) -> Float[Tensor, "dim1 dim3"]:
+    return x @ y
+```
+
+#pagebreak()
+
+- Can be checked at runtime (for example during tests) when combined with `beartype` (or `typeguard`).
+
+```toml
+#pyproject.toml
+[tool.pytest.ini_options]
+addopts = "--jaxtyping-packages=my_project,beartype.beartype"
+```
+
+Also, useful as a shorthand for checking tensor type, dtype and shape:
+
+```python
+assert isinstance(output, Float32[Tensor, "3 128 128"])
+```
+
+#pagebreak()
+
+Annotations can reference function arguments or module attributes!
+
+#set text(size: 9pt)
+
+```python
+class MLP(nn.Module):
+    """Classical 2-layer MLP with ReLU activation."""
+    def __init__(self, in_dims: int, out_dims: int, hidden_dims: int = 128):
+        super().__init__()
+        self.in_dims = in_dims
+        self.hidden_dims = hidden_dims
+        self.out_dims = out_dims
+        self.linear1 = nn.Linear(in_dims, hidden_dims)
+        self.linear2 = nn.Linear(hidden_dims, out_dims)
+        self.activation = nn.ReLU()
+    @jaxtyped(typechecker=beartype)
+    def forward(
+        self, input: Float[Tensor, "b {self.in_dims}"]
+    ) -> Float[Tensor, "b {self.out_dims}"]:
+        return self.linear2(self.activation(self.linear1(input)))
+```
+#set text(size: 11pt)
+
+== Jaxtyping + einops <jaxtyping_einops>
+
+// Combining `jaxtyping` with `einops` allows you to have very explicit, strictly typed code:
+
+// #set text(size: 9pt)
+// ```python
+// from jaxtyping import Float
+// from torch import Tensor
+
+// def patchify(
+//     images: Float[Tensor, "b c h w"],
+//     p: int,
+// ) -> Float[Tensor, " b (h/{p})*(w/{p}) ({p}*{p}*c)"]:
+//     return rearrange(images, "b c (hp p1) (wp p2) -> b (hp wp) (p1 p2 c)", p1=p, p2=p)
+// ```
+// #set text(size: 11pt)
+
+// #pagebreak()
+
+#set text(size: 9pt)
+```python
+class SwiGLU(nn.Module):
+    """SwiGLU feed-forward block: down(silu(gate) * up).
+    Used in LLaMA, PaLM, Gemma — replaces the standard 2-layer ReLU MLP.
+    """
+    def __init__(self, d_model: int, d_ff: int):
+        super().__init__()
+        self.d_model = d_model
+        self.d_ff = d_ff
+        # Fused gate + up: one matmul instead of two, split with einops.
+        self.gate_up = nn.Linear(d_model, 2 * d_ff, bias=False)
+        self.down = nn.Linear(d_ff, d_model, bias=False)
+
+    @jaxtyped(typechecker=beartype)
+    def forward(
+        self,
+        x: Float[Tensor, "b n {self.d_model}"],
+    ) -> Float[Tensor, "b n {self.d_model}"]:
+        gate, up = rearrange(
+            self.gate_up(x),  "b n (two d_ff) -> two b n d_ff", two=2,
+        )
+        return self.down(F.silu(gate) * up)
+```
+#set text(size: 11pt)
 
 == Weights & Biases (WandB)
 
