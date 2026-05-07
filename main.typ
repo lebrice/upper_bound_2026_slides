@@ -445,13 +445,80 @@ TODO: Slide showing how to use `srun` + attaching the vscode debugger to each ta
 
 = Writing Great ML Code
 
-== Einops
+== Einops <einops>
 
-TODO
+*Problem*: Tensor `reshape` / `unsqueeze` / `permute` / `view` chains are cryptic, error-prone, and a pain to read months later.
 
-== Jaxtyping
+*Solution*: `einops` lets you write tensor manipulations as a string of named axes.
 
-TODO
+Example: patchifying an image batch for a Vision Transformer.
+
+#set text(size: 9pt)
+#columns(2)[
+  Without einops:
+  ```python
+  import torch
+
+  def patchify(images, p):
+      B, C, H, W = images.shape
+      x = images.reshape(B, C, H // p, p, W // p, p)
+      x = x.permute(0, 2, 4, 3, 5, 1).contiguous()
+      x = x.reshape(B, (H // p) * (W // p), p * p * C)
+      return x
+  ```
+  #colbreak()
+
+  With einops:
+  ```python
+  from einops import rearrange
+
+  def patchify(images, p):
+      return rearrange(
+          images,
+          "b c (h p1) (w p2) -> b (h w) (p1 p2 c)",
+          p1=p, p2=p,
+      )
+  ```
+]
+#set text(size: 11pt)
+
+#pagebreak()
+
+`einops` also replaces `view` / `transpose` chains in multi-head attention, channel-shuffle, etc.
+
+#set text(size: 9pt)
+#columns(2)[
+  Without einops:
+  ```python
+  # split heads
+  B, N, D = q.shape
+  q = q.reshape(B, N, H, D // H).transpose(1, 2)
+  k = k.reshape(B, N, H, D // H).transpose(1, 2)
+  v = v.reshape(B, N, H, D // H).transpose(1, 2)
+  # ... attention ...
+  out = out.transpose(1, 2).reshape(B, N, D)
+  ```
+  #colbreak()
+
+  With einops:
+  ```python
+  from einops import rearrange
+
+  q = rearrange(q, "b n (h d) -> b h n d", h=H)
+  k = rearrange(k, "b n (h d) -> b h n d", h=H)
+  v = rearrange(v, "b n (h d) -> b h n d", h=H)
+  # ... attention ...
+  out = rearrange(out, "b h n d -> b n (h d)")
+  ```
+]
+#set text(size: 11pt)
+
+Also useful: `reduce(x, "b c h w -> b c", "mean")`, `repeat(x, "h w -> h w c", c=3)`, and `einops.einsum` for named-axis contractions. Pair with #ref(<jaxtyping>) for shape-checked tensors.
+
+== Jaxtyping <jaxtyping>
+
+TODO: Slide showing a function with jaxtyping annotations that match the einops patterns used in the function, and how this improves readability and maintainability.
+
 
 == Weights & Biases (WandB)
 
