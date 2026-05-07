@@ -104,18 +104,6 @@ Interesting info for everyone, even veterans:
   - (Can also be used to create jobs, but we don't recommend it)
 
 
-== Typical Research Workflow - Mila
-
-1. `mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
-  - Requests an interactive job on the Mila cluster with `salloc` and requested resources;
-  - Waits for job to start;
-  - Opens `my_project` folder in VSCode with Remote-SSH connected to the compute node.
-
-2. Develop code iteratively, using the VSCode terminal (inside compute node) to run commands.
-
-3. Once the code is ready, submit a batch job with `sbatch` to run the code on more GPUs, for longer, etc.
-
-4. Move to other cluster if necessary, use same loop (with `--cluster=<cluster>`).
 
 = Slurm tips and tricks
 
@@ -225,10 +213,12 @@ Proper checkpointing is *crucial*!
 
 #pagebreak()
 
-Using Slurm + Git + #ref(<uv>) enables easy code checkpointing, which is a game changer for iterative development on clusters!
+Using Slurm + Git + #ref(<uv>) enables easy code checkpointing:
 
+safe_sbatch:
 ```bash
 #!/bin/bash
+# safe_sbatch wrapper
 if [ -n "`git status --porcelain`" ]; then
     echo "Your working directory is dirty! "
     echo "Please add and commit changes before submitting a job."
@@ -403,16 +393,43 @@ rdkit = { index = "pypi" }
 
 == milatools <milatools>
 
-TODO
+Small Python package developed by the IDT team at Mila.
 
+Install with `uv tool install milatools`
+
+- `mila init`:
+  - Sets up SSH configuration.
+  - Checks access to clusters
+  - Gives instructions for setting up access to Mila/DRAC clusters.
+
+- `mila code --cluster=<cluster> [project_path] [--salloc resources]`
+  - Works with *_any_* Slurm cluster accessible with SSH
+  - Requests an interactive job with `salloc <resources>`;
+  - Waits for job to start;
+  - Opens `project_path` in VSCode with Remote-SSH connected to the compute node.
+  - Can also connect to an already running job with `--job <job_id>`.
 
 == mila code <mila-code>
 
-TODO
+`mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
+  - Requests an interactive job on the Mila cluster with `salloc` and requested resources;
+  - Waits for job to start;
+  - Opens `my_project` folder in VSCode with Remote-SSH connected to the compute node.
 
 == Smart SSH Config Entries: mila-cpu <mila-cpu>
 
-TODO
+== Typical Research Workflow - Mila
+
+1. `mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
+  - Requests an interactive job on the Mila cluster with `salloc` and requested resources;
+  - Waits for job to start;
+  - Opens `my_project` folder in VSCode with Remote-SSH connected to the compute node.
+
+2. Develop code iteratively, using the VSCode terminal (inside compute node) to run commands.
+
+3. Once the code is ready, submit a batch job with `sbatch` to run the code on more GPUs, for longer, etc.
+
+4. Move to other cluster if necessary, use same loop (with `--cluster=<cluster>`).
 
 == Debugging Multi-GPU Jobs
 
@@ -437,7 +454,12 @@ TODO
 TODO
 
 == Weights & Biases (WandB)
+
+TODO
+
 == Unit tests for ML
+
+TODO
 
 == (!!) GitHub CI + Slurm Clusters <github_ci_slurm>
 
@@ -502,7 +524,7 @@ TODO
 
 == Dataloader Bottlenecks
 
-TODO
+TODO:
 
 == Using the filesystem efficiently
 
