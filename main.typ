@@ -79,14 +79,14 @@ Interesting info for everyone, even veterans:
   columns: 8,
   align: (auto, center, right, right, right, right, auto, auto),
   [Cluster],    [#text([CPU/GPU Nodes], size:0.7em)],[#underline("CPUs")], [GPUs],              [#underline("H100-eq.")],[Storage],[Internet?], [Full Node?],
-  [Mila],       [12 / 190],     [11448],    [992 (mixed)],       [\~500],   [2 PB],   [*Yes*], [No],
-  [Rorqual],    [686 / 93],     [137664],   [372 H100],          [372],     [*69 PB*],  [No], [No],
-  [Fir],        [872 / 160],    [175104],   [640 H100],          [640],     [51 PB],  [*Yes*], [No],
-  [Nibi],       [710 / 42],     [140928],   [288 H100],          [288],     [25 PB],  [*Yes*], [No],
-  [Tamia],      [8 / 65],       [3824],     [212 H100 + 96 H200],[\~315],   [? PB],   [No], [Yes],
-  [Killarney],  [0 / 178],      [11232],    [672 L40S + 80 H100],[\~652],   [2 PB],   [Yes?], [No],
-  [Vulcan],     [0 / *252*],    [16128],    [1008 L40S],         [*\~858*],   [5 PB],   [No], [No],
-  [Trillium],   [*1224* / 63],  [*241056*], [640 H100],         [640],     [29 PB],   [No], [Yes],
+  [Mila],       [12 / 190],     [11k],    [992 (mixed)],       [\~500],   [2 PB],   [*Yes*], [No],
+  [Rorqual],    [686 / 93],     [138k],   [372 H100],          [372],     [*69 PB*],  [No], [No],
+  [Fir],        [872 / 160],    [175k],   [640 H100],          [640],     [51 PB],  [*Yes*], [No],
+  [Nibi],       [710 / 42],     [141k],   [288 H100],          [288],     [25 PB],  [*Yes*], [No],
+  [Tamia],      [8 / 65],       [4k],     [212 H100 + 96 H200],[\~315],   [? PB],   [No], [Yes],
+  [Killarney],  [0 / 178],      [11k],    [672 L40S + 80 H100],[\~652],   [2 PB],   [Yes?], [No],
+  [Vulcan],     [0 / *252*],    [16k],    [1008 L40S],         [*\~858*],   [5 PB],   [No], [No],
+  [Trillium],   [*1224* / 63],  [*241k*], [640 H100],         [640],     [29 PB],   [No], [Yes],
 )
 
 - Mila cluster has preemptible long jobs and limited non-preemptible short jobs.
@@ -121,6 +121,10 @@ Interesting info for everyone, even veterans:
 
 == Easy job submission <job_submission>
 
+*Problem*: Having the commands in your job script leads to having to manage lots of jobs scripts!
+
+*Solution*
+
 #columns(2)[
   job.sh:
   ```bash
@@ -147,6 +151,7 @@ Interesting info for everyone, even veterans:
 
 == Use Job Dependencies to prevent waste <job_dependencies>
 
+*problem*: Submitting a lot of jobs, but
 Ties in nicely with the #ref(<job_submission>) setup!
 
 
@@ -163,7 +168,6 @@ sbatch --dependency=afterok:$jobid_a,$jobid_b,$jobid_c job.sh --lr=best
 
 == Job Chunking: Get scheduled faster <job_chunking>
 
-Easy Job chain!
 
 Assuming your job script does #ref(<checkpointing>) correctly, you can break up a long job into smaller chunks, which can get scheduled faster and reduce the time needed to get your results!
 
@@ -207,21 +211,45 @@ Proper checkpointing is *crucial*!
 
 == Code Checkpointing <code_checkpointing>
 
-Using Slurm + Git + UV enables easy code checkpointing, which is a game changer for iterative development on clusters!
+/ *problem*:
+  1. Submit job A with sbatch
+  2. Modify the Python scripts
+  3. Submit job B with sbatch
+  4. Job A starts running with the *modified* code (BAD!)
+  5. Job B starts running with the modified code
+  6. Results are weird???
 
-- Submit job A
-- Edit the code
-- Submit job B
-- Job A starts running with the new code
-- Job B starts running with the new code
-- ???
+*Solution*:
+1. `safe_sbatch`: A wrapper around `sbatch` that checks for uncommitted changes in the git repository, and if there are any, it prevents the job from being submitted.
+2. Job script clones the code at the exact commit at the time of the job was submitted in a temporary directory (`$SLURM_TMPDIR`), and runs the code from there.
 
 #pagebreak()
 
+Using Slurm + Git + #ref(<uv>) enables easy code checkpointing, which is a game changer for iterative development on clusters!
+
 ```bash
 #!/bin/bash
-# clone the project from $HOME to $SLURM_TMPDIR at commit $GIT_COMMIT
-export UV_OFFLINE=1
+if [ -n "`git status --porcelain`" ]; then
+    echo "Your working directory is dirty! "
+    echo "Please add and commit changes before submitting a job."
+    exit 1
+fi
+export GIT_COMMIT=`git rev-parse HEAD`
+exec sbatch "$@"
+```
+
+```console
+safe_sbatch --gpus=1 --time=3-00:00:00 job.sh
+```
+
+#pagebreak()
+
+Job script creates a copy of the code at the _exact_ commit that was used to submit the job, in a temporary directory (`$SLURM_TMPDIR`), and runs the code from there.
+
+- Virtual environment is recreated in `/tmp` by #ref(<uv>) from the cache.
+// - Commands are run in the cloned project
+
+/ *Job.sh*: ```bash
 srun --ntasks-per-node=1 --ntasks=$SLURM_JOB_NUM_NODES bash -e <<END
     cd $SLURM_TMPDIR
     git clone $HOME/my_project
@@ -262,8 +290,8 @@ Can use the DRAC wheelhouse when convenient (for example, `flash-attn`)
 ```toml
 # pyproject.toml
 [[tool.uv.index]]
-name = "drac-gentoo2023-x86-64-v3"
-url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/x86-64-v3"
+name = "drac-gentoo2023-generic"
+url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/generic"
 format = "flat"
 explicit = true
 
@@ -272,23 +300,57 @@ explicit = true
 flash-attn = { index = "drac-gentoo2023-generic" }
 ```
 
-// ```toml
-// [[tool.uv.index]]
-// name = "drac-gentoo2023-generic"
-// url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/generic"
-// format = "flat"
-// explicit = true
+#pagebreak()
 
-// [[tool.uv.index]]
-// name = "drac-generic"
-// url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/generic"
-// format = "flat"
-// explicit = true
-// ```
+Alternatively, you can also try to always use the wheelhouse, and specify explicitly which packages to get from PyPI.
+
+#set text(
+  size: 8pt
+)
+```toml
+[[tool.uv.index]]
+name = "drac-gentoo2023-x86-64-v3"
+url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/x86-64-v3"
+format = "flat"
+
+[[tool.uv.index]]
+name = "drac-gentoo2023-generic"
+url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/generic"
+format = "flat"
+
+[[tool.uv.index]]
+name = "drac-generic"
+url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/generic"
+format = "flat"
+default = true
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+explicit = true
+```
+
+#pagebreak()
+
+#set text( // reset to the original size.
+  size: 11pt
+)
+
+Some packages are normally only available though modules.
+To use them, you have to specify them explicitly in the `sources` section of your project's `pyproject.toml` file:
+
+```toml
+#pyproject.toml
+[tool.uv.sources]
+mpi4py = { index = "pypi" }
+opencv = { index = "pypi" }
+pyarrow = { index = "pypi" }
+rdkit = { index = "pypi" }
+```
 
 == UV advanced tips
 
-- UV can also set environment variables when building a specific package.
+- UV can also set environment variables when building a specific package!
 
   ```toml
   #pyproject.toml
@@ -300,7 +362,7 @@ flash-attn = { index = "drac-gentoo2023-generic" }
 
 #pagebreak()
 
-- UV dependency groups for different CUDA versions:
+- You can use dependency groups for different CUDA versions:
 
 
 #columns(2)[
@@ -457,11 +519,13 @@ TODO
 
 = Case studies
 
-- Real Examples of sub-optimal workflows → diagnostic → fix → Outcome
 
 == RL With Simulation on CPU
 
-TODO
+- Real Examples of sub-optimal workflows → diagnostic → fix → Outcome
+/ TODO:
+  Diagram showing the workflow of an RL experiment using simulation on the CPU. Simulation is very slow, and increasing the number of workers makes this slower!
+
 
 == Efficient Checkpointing
 
