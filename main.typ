@@ -8,8 +8,8 @@
 
 
 #show: slides.with(
-  title: "Software Ergonomics", // Required
-  subtitle: "Tips and Tricks for Efficient Research with Slurm Compute Clusters",
+  title: "Efficient Research with Slurm Compute Clusters", // Required
+  subtitle: "Tips and Tricks from Mila's IDT team",
   date: "2026-05-22",
   authors: ("Fabrice Normandin"),
   // Optional Style Options
@@ -20,7 +20,7 @@
   count: "number", // one of "dot", "dot-section", "number", or none
   footer: true,
   theme: "normal",
-  // footer-title: "FOOO 2026",
+  footer-title: "Tips & tricks for efficient research with Slurm compute clusters",
   footer-subtitle: "Upper Bound 2026",
   // theme: "full", // one of "normal", "full"
   // ... see the docs for more options
@@ -61,14 +61,15 @@ What this talk is *not* about:
 
 == What is a Compute cluster, really? <switches>
 
-TODO: Slide describing the nodes / switches / storage servers.
+/ TODO:
+  Slide describing the nodes / switches / storage servers.
 
-Interesting info for everyone, even veterans:
-- Relative bandwidth of different communication paths (intra-node GPU-GPU, intra-node GPU-CPU, inter-node GPU-CPU, inter-node CPU-CPU)
-- Intro to "switches", impact in distributed jobs (controlled somewhat with `--switches` of sbatch)
-- Distributed filesystem implications:
-  - Filesystem striping across multiple storage servers --> Higher throughput for large datasets
-  - But also higher latency for small files --> Implications for checkpointing, logging, etc.
+  Interesting info for everyone, even veterans:
+  - Relative bandwidth of different communication paths (intra-node GPU-GPU, intra-node GPU-CPU, inter-node GPU-CPU, inter-node CPU-CPU)
+  - Intro to "switches", impact in distributed jobs (controlled somewhat with `--switches` of sbatch)
+  - Distributed filesystem implications:
+    - Filesystem striping across multiple storage servers --> Higher throughput for large datasets
+    - But also higher latency for small files --> Implications for checkpointing, logging, etc.
 
 
 
@@ -86,7 +87,7 @@ Interesting info for everyone, even veterans:
   [Tamia],      [8 / 65],       [4k],     [212 H100 + 96 H200],[\~315],   [? PB],   [No], [Yes],
   [Killarney],  [0 / 178],      [11k],    [672 L40S + 80 H100],[\~652],   [2 PB],   [Yes?], [No],
   [Vulcan],     [0 / *252*],    [16k],    [1008 L40S],         [*\~858*],   [5 PB],   [No], [No],
-  [Trillium],   [*1224* / 63],  [*241k*], [640 H100],         [640],     [29 PB],   [No], [Yes],
+  [Trillium],   [*1224* / 63],  [*241k*], [640 H100],         [640],     [29 PB],   [No], [Yes/No],
 )
 
 - Mila cluster has preemptible long jobs and limited non-preemptible short jobs.
@@ -103,7 +104,9 @@ Interesting info for everyone, even veterans:
   - Runs a "command" (e.g. `python main.py`) once per _*task*_ inside a job.
   - (Can also be used to create jobs, but we don't recommend it)
 
+== `srun` is all you need!
 
+/todo: Slide showing how `srun` is amazing.
 
 = Slurm tips and tricks
 
@@ -208,8 +211,8 @@ Proper checkpointing is *crucial*!
   6. Results are weird???
 
 *Solution*:
-1. `safe_sbatch`: A wrapper around `sbatch` that checks for uncommitted changes in the git repository, and if there are any, it prevents the job from being submitted.
-2. Job script clones the code at the exact commit at the time of the job was submitted in a temporary directory (`$SLURM_TMPDIR`), and runs the code from there.
+1. `safe_sbatch`: Prevents the job from being submitted if there are uncommitted changes.
+2. Job script uses the code at the commit when the job was submitted ("code checkpointing")
 
 #pagebreak()
 
@@ -236,7 +239,7 @@ safe_sbatch --gpus=1 --time=3-00:00:00 job.sh
 
 Job script creates a copy of the code at the _exact_ commit that was used to submit the job, in a temporary directory (`$SLURM_TMPDIR`), and runs the code from there.
 
-- Virtual environment is recreated in `/tmp` by #ref(<uv>) from the cache.
+- Virtual environment is recreated in `/tmp` by #ref(<uv>) from the cache (also works in offline mode).
 // - Commands are run in the cloned project
 
 / *Job.sh*: ```bash
@@ -261,15 +264,15 @@ Awesome commands:
 - `uv sync`
 - `uv run <command>`
 
-Not recommended: `uv pip` / `uv venv`. (pip compatibility, no dependency tracking)
+Not recommended: `uv pip` / `uv venv`: (pip compatibility, no dep. tracking)
 
 Useful global flags / environment variables:
-- `--offline` : Useful on DRAC clusters without internet access on Compute Nodes
-- `--directory` Useful with a Code Checkpointing setup in `$SLURM_TMPDIR`
+- `--offline` : Useful on clusters with no internet access on Compute Nodes (see #ref(<uv_on_drac>, supplement: "UV + DRAC"))
+- `--directory` Useful with a _Code Checkpointing_ setup in `$SLURM_TMPDIR` (see #ref(<code_checkpointing>))
 
 
 
-== Using uv on DRAC Clusters
+== Using uv on DRAC Clusters <uv_on_drac>
 
 // #set text(
 //   size: 8pt
@@ -388,8 +391,7 @@ rdkit = { index = "pypi" }
   ```
 ]
 
-
-= Interactive Development and Debugging on Slurm Clusters
+= Interactive Development and Debugging
 
 == milatools <milatools>
 
