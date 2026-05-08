@@ -17,7 +17,8 @@
   ratio: 25/14, // aspect ratio of the slides, any valid number
   layout: "medium", // one of "small", "medium", "large"
   toc: true,
-  count: "number", // one of "dot", "dot-section", "number", or none
+  // count: "number", // one of "dot", "dot-section", "number", or none
+  count: "dot-section", // one of "dot", "dot-section", "number", or none
   footer: true,
   theme: "normal",
   footer-title: "Tips & tricks for efficient research with Slurm compute clusters",
@@ -252,7 +253,7 @@ END
 srun uv run --directory $SLURM_TMPDIR/my_project "$@"
 ```
 
-= UV
+= uv
 
 == uv <uv>
 
@@ -270,92 +271,9 @@ Useful global flags / environment variables:
 - `--offline` : Useful on clusters with no internet access on Compute Nodes (see #ref(<uv_on_drac>, supplement: "UV + DRAC"))
 - `--directory` Useful with a _Code Checkpointing_ setup in `$SLURM_TMPDIR` (see #ref(<code_checkpointing>))
 
+== uv + PyTorch / CUDA dependencies
 
-
-== Using uv on DRAC Clusters <uv_on_drac>
-
-// #set text(
-//   size: 8pt
-// )
-
-Can use the DRAC wheelhouse when convenient (for example, `flash-attn`)
-
-```toml
-# pyproject.toml
-[[tool.uv.index]]
-name = "drac-gentoo2023-generic"
-url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/generic"
-format = "flat"
-explicit = true
-
-[tool.uv.sources]
-# Use the pre-built wheel for flash-attn from the DRAC wheelhouse
-flash-attn = { index = "drac-gentoo2023-generic" }
-```
-
-#pagebreak()
-
-Alternatively, you can also try to always use the wheelhouse, and specify explicitly which packages to get from PyPI.
-
-#set text(
-  size: 8pt
-)
-```toml
-[[tool.uv.index]]
-name = "drac-gentoo2023-x86-64-v3"
-url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/x86-64-v3"
-format = "flat"
-
-[[tool.uv.index]]
-name = "drac-gentoo2023-generic"
-url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/generic"
-format = "flat"
-
-[[tool.uv.index]]
-name = "drac-generic"
-url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/generic"
-format = "flat"
-default = true
-
-[[tool.uv.index]]
-name = "pypi"
-url = "https://pypi.org/simple"
-explicit = true
-```
-
-#pagebreak()
-
-#set text( // reset to the original size.
-  size: 11pt
-)
-
-Some packages are normally only available though modules.
-To use them, you have to specify them explicitly in the `sources` section of your project's `pyproject.toml` file:
-
-```toml
-#pyproject.toml
-[tool.uv.sources]
-mpi4py = { index = "pypi" }
-opencv = { index = "pypi" }
-pyarrow = { index = "pypi" }
-rdkit = { index = "pypi" }
-```
-
-== UV advanced tips
-
-- UV can also set environment variables when building a specific package!
-
-  ```toml
-  #pyproject.toml
-  [tool.uv.extra-build-variables.flash-attn]
-  MAX_JOBS = "1"
-  FLASH_ATTENTION_SKIP_CUDA_BUILD = "0"
-  TORCH_CUDA_ARCH_LIST = "9.0"
-  ```
-
-#pagebreak()
-
-- You can use dependency groups for different CUDA versions:
+You can use dependency groups for different CUDA versions!
 
 
 #columns(2)[
@@ -389,7 +307,94 @@ rdkit = { index = "pypi" }
   uv sync --extra=cuda128
   uv sync --extra=cuda130
   ```
+
+  - Very useful with a multi-cluster setup, where CUDA versions may differ between clusters. (See #ref(<cluv>) in later slides!)
 ]
+
+== Using uv on DRAC Clusters <uv_on_drac>
+
+// #set text(
+//   size: 8pt
+// )
+
+Can use the DRAC wheelhouse when convenient (for example, `flash-attn`)
+
+```toml
+# pyproject.toml
+[[tool.uv.index]]
+name = "drac-gentoo2023-generic"
+url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/generic"
+format = "flat"
+explicit = true
+
+[tool.uv.sources]
+# Use the pre-built wheel for flash-attn from the DRAC wheelhouse
+flash-attn = { index = "drac-gentoo2023-generic" }
+```
+
+#pagebreak()
+
+Alternatively, you can also use the DRAC wheelhouse by default, and use PyPI only as needed:
+
+#set text(
+  size: 8pt
+)
+```toml
+[[tool.uv.index]]
+name = "drac-gentoo2023-x86-64-v3"
+url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/x86-64-v3"
+format = "flat"
+
+[[tool.uv.index]]
+name = "drac-gentoo2023-generic"
+url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/generic"
+format = "flat"
+
+[[tool.uv.index]]
+name = "drac-generic"
+url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/generic"
+format = "flat"
+default = true
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+explicit = true
+```
+
+#pagebreak()
+
+#set text( // reset to the original size.
+  size: 11pt
+)
+
+Some packages are otherwise only available though modules.
+
+Use the `sources` section of your project's `pyproject.toml` to get them from PyPI:
+
+```toml
+#pyproject.toml
+[tool.uv.sources]
+mpi4py = { index = "pypi" }
+opencv = { index = "pypi" }
+pyarrow = { index = "pypi" }
+rdkit = { index = "pypi" }
+```
+
+== Case Study - UV + Flash-attn
+
+- UV can also set environment variables when building a specific package!
+
+  ```toml
+  #pyproject.toml
+  [tool.uv.extra-build-variables.flash-attn]
+  MAX_JOBS = "1"
+  FLASH_ATTENTION_SKIP_CUDA_BUILD = "0"
+  TORCH_CUDA_ARCH_LIST = "9.0"
+  ```
+
+#pagebreak()
+
 
 = Interactive Development and Debugging
 
@@ -398,6 +403,41 @@ rdkit = { index = "pypi" }
 Small Python package developed by the IDT team at Mila.
 
 Install with `uv tool install milatools`
+
+
+= Interactive Development and Debugging
+
+== milatools <milatools>
+
+Small Python package developed by the IDT team at Mila.
+
+Install with `uv tool install milatools`
+
+- `mila init`:
+  - Sets up SSH configuration.
+  - Checks access to clusters
+  - Gives instructions for setting up access to Mila/DRAC clusters.
+
+- `mila code --cluster=<cluster> [project_path] [--salloc resources]`
+
+  Works with *_any_* Slurm cluster accessible with SSH
+  1. Requests an interactive job with `salloc <resources>`;
+  2. Waits for job to start;
+  3. Opens `project_path` in VSCode with Remote-SSH connected to the compute node.
+  - Can also connect to an already running job with `--job <job_id>`.
+
+== mila code <mila-code>
+
+`mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
+  - Requests an interactive job on the Mila cluster with `salloc` and requested resources;
+  - Waits for job to start;
+  - Opens `my_project` folder in VSCode with Remote-SSH connected to the compute node.
+
+== Smart SSH Config Entries: mila-cpu <mila-cpu>
+
+== Typical Research Workflow - Mila
+
+1. `mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
 
 - `mila init`:
   - Sets up SSH configuration.
@@ -777,6 +817,18 @@ TODO
 TODO
 
 = Ongoing work and open problems
+
+== cluv <cluv>
+
+Cluv: *Cl* uster + *uv*: Simple CLI tool to dispatch jobs and synchronize uv projects across multiple Slurm clusters.
+
+- `cluv login`
+- `cluv sync`
+- `cluv status`
+- `cluv run <cluster> <command>`
+- `cluv submit <cluster> <job_script> [args]`
+- `cluv submit   first   <job_script> [args]`
+
 
 == Research Template Repository <research_template>
 
