@@ -317,7 +317,7 @@ You can use dependency groups for different CUDA versions!
 //   size: 8pt
 // )
 
-Can use the DRAC wheelhouse when convenient (for example, `flash-attn`)
+Use the DRAC wheelhouse when convenient (for example, `flash-attn`)
 
 ```toml
 # pyproject.toml
@@ -368,7 +368,7 @@ explicit = true
   size: 11pt
 )
 
-Some packages are otherwise only available though modules.
+Some packages are normally only available though modules.
 
 Use the `sources` section of your project's `pyproject.toml` to get them from PyPI:
 
@@ -383,7 +383,12 @@ rdkit = { index = "pypi" }
 
 == Case Study - UV + Flash-attn
 
-- UV can also set environment variables when building a specific package!
+Flash-Attention is notoriously difficult to deal with:
+- pre-built wheels are not always available
+- Building from source is heavy (terrible on login nodes)
+  - 100s of threads, takes a very long time
+
+*Solution 1*: UV can set environment variables when building a specific package!
 
   ```toml
   #pyproject.toml
@@ -394,6 +399,25 @@ rdkit = { index = "pypi" }
   ```
 
 #pagebreak()
+
+*Solution 2*: Use a prebuilt wheel from the DRAC wheelhouse (works only on DRAC)
+
+/ TODO: Show a config that uses the DRAC wheelhouse when --extra drac and also works otherwise?
+
+  ```toml
+  # pyproject.toml
+  [[tool.uv.index]]
+  name = "drac-gentoo2023-generic"
+  url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/generic"
+  format = "flat"
+  explicit = true
+
+  [tool.uv.sources]
+  # Use the pre-built wheel for flash-attn from the DRAC wheelhouse
+  flash-attn = { index = "drac-gentoo2023-generic" }
+  ```
+
+
 
 
 = Interactive Development and Debugging
