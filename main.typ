@@ -463,11 +463,15 @@ Install with `uv tool install milatools`
 
 `ssh mila-cpu`:
 1. Connects to the Mila cluster
-2. Checks for a running cpu job with name 'mila-cpu'.
+2. Checks for a running cpu job with name `'mila-cpu'`.
   - If a job is found, connect to it.
-  - If no job is found, submit a new one.
-3. Creates a new interactive terminal connected to the compute node
+  - If no job is found, submit a new one with `sbatch`.
+3. Creates a new interactive terminal attached to the job.
+4. Job persists for 10 minutes after exiting.
 
+
+- Useful for Remote-SSH with vscode (alternative to #ref(<mila-code>))
+- Can be modified for any cluster and resource type (e.g. `mila-gpu`, `tamia-cpu`, etc.)
 
 == Typical Research Workflow - Mila
 
@@ -486,21 +490,11 @@ Install with `uv tool install milatools`
   3. Opens `project_path` in VSCode with Remote-SSH connected to the compute node.
   - Can also connect to an already running job with `--job <job_id>`.
 
-== mila code <mila-code>
-
-`mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
-  - Requests an interactive job on the Mila cluster with `salloc` and requested resources;
-  - Waits for job to start;
-  - Opens `my_project` folder in VSCode with Remote-SSH connected to the compute node.
-
 == Smart SSH Config Entries: mila-cpu <mila-cpu>
 
 == Typical Research Workflow - Mila
 
 1. `mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
-  - Requests an interactive job on the Mila cluster with `salloc` and requested resources;
-  - Waits for job to start;
-  - Opens `my_project` folder in VSCode with Remote-SSH connected to the compute node.
 
 2. Develop code iteratively, using the VSCode terminal (inside compute node) to run commands.
 
@@ -510,14 +504,16 @@ Install with `uv tool install milatools`
 
 == Debugging Multi-GPU Jobs
 
-TODO: Slide showing how to use `srun` + attaching the vscode debugger to each task, to have the VsCode debugger attached to each task in a multi-node setup.
+/ TODO: Slide showing how to use `srun` + attaching the vscode debugger to each task, to have the VsCode debugger attached to each task in a multi-node setup.
 
 
 == Debugging Multi-Node Jobs
 
-TODO: Slide showing how to use `srun` + attaching the vscode debugger to each task, to debug each gpu/node in a multi-node setup.
+/ TODO: Slide showing how to use `srun` + attaching the vscode debugger to each task, to debug each gpu/node in a multi-node setup.
 
 == Profiling with TensorBoard + Torch Profiler
+
+/ TODO: Slide showing Tensorboard + torch-tb-profiler
 
 
 = Writing Great ML Code
@@ -573,9 +569,6 @@ Check out the docs at https://einops.rocks/ for more examples and use cases.
 
 
 Pair with #ref(<jaxtyping>) for shape-checked tensors!
-
-
-
 
 == Jaxtyping <jaxtyping>
 
