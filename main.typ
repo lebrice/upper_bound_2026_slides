@@ -459,6 +459,16 @@ Install with `uv tool install milatools`
 
 == Smart SSH Config Entries: mila-cpu <mila-cpu>
 
+`mila init` creates an SSH config entry called `mila-cpu`.
+
+`ssh mila-cpu`:
+1. Connects to the Mila cluster
+2. Checks for a running cpu job with name 'mila-cpu'.
+  - If a job is found, connect to it.
+  - If no job is found, submit a new one.
+3. Creates a new interactive terminal connected to the compute node
+
+
 == Typical Research Workflow - Mila
 
 1. `mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
