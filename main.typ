@@ -389,7 +389,7 @@ rdkit = { index = "pypi" }
 ]
 
 
-= Interactive Development and Debugging
+= Interactive Development and Debugging on Slurm Clusters
 
 == milatools <milatools>
 
@@ -403,10 +403,11 @@ Install with `uv tool install milatools`
   - Gives instructions for setting up access to Mila/DRAC clusters.
 
 - `mila code --cluster=<cluster> [project_path] [--salloc resources]`
-  - Works with *_any_* Slurm cluster accessible with SSH
-  - Requests an interactive job with `salloc <resources>`;
-  - Waits for job to start;
-  - Opens `project_path` in VSCode with Remote-SSH connected to the compute node.
+
+  Works with *_any_* Slurm cluster accessible with SSH
+  1. Requests an interactive job with `salloc <resources>`;
+  2. Waits for job to start;
+  3. Opens `project_path` in VSCode with Remote-SSH connected to the compute node.
   - Can also connect to an already running job with `--job <job_id>`.
 
 == mila code <mila-code>
@@ -541,7 +542,7 @@ Annotations can reference function arguments or module attributes!
 
 ```python
 class MLP(nn.Module):
-    """Classical 2-layer MLP with ReLU activation."""
+    """Standard 2-layer MLP with ReLU activation."""
     def __init__(self, in_dims: int, out_dims: int, hidden_dims: int = 128):
         super().__init__()
         self.in_dims = in_dims
@@ -550,10 +551,11 @@ class MLP(nn.Module):
         self.linear1 = nn.Linear(in_dims, hidden_dims)
         self.linear2 = nn.Linear(hidden_dims, out_dims)
         self.activation = nn.ReLU()
+
     @jaxtyped(typechecker=beartype)
     def forward(
-        self, input: Float[Tensor, "b {self.in_dims}"]
-    ) -> Float[Tensor, "b {self.out_dims}"]:
+        self, input: Float[Tensor, "b {self.in_dims}"]            # <---- (here)
+    ) -> Float[Tensor, "b {self.out_dims}"]:                      # <---- (here)
         return self.linear2(self.activation(self.linear1(input)))
 ```
 #set text(size: 11pt)
@@ -607,9 +609,53 @@ class SwiGLU(nn.Module):
 
 TODO
 
-== Unit tests for ML
+= Testing for ML code
 
-TODO
+== Reproducibility testing <tensor-regression>
+
+URL: #link("https://github.com/mila-iqia/tensor_regression", "github.com/mila-iqia/tensor_regression")
+
+```python
+import pytest
+from my_project import make_model
+
+@pytest.mark.parametrize("seed", [42])
+def test_initialization_is_reproducible(seed: int, tensor_regression):
+    model = make_model(seed=seed)
+    tensor_regression.check(model.state_dict())
+```
+
+Based on #link("https://github.com/ESSS/pytest-regressions", "pytest-regressions")
+- Saves simple tensor statistics (shape, dtype, min/max/mean) in a `.yaml` file that can be saved with git.
+- Value differs from expected --> Error
+- File not present --> Error. (Generate missing files with `--gen-missing` or `--regen-all`)
+
+
+#pagebreak()
+
+#set text(size: 9pt)
+```python
+import pytest
+from my_project import make_model
+
+@pytest.mark.parametrize("seed", [42])
+def test_train_step_is_reproducible(seed: int, tensor_regression):
+    model = make_model(seed=seed)
+    dataloader = DataLoader(SomeDataset(), ...)
+    batch = next(iter(dataloader))
+
+    model.zero_grad()
+    loss = model.training_step(batch)
+    loss.backward()
+    model.optimizer_step()
+
+    tensor_regression.check({
+      "batch": batch,
+      "loss": loss,
+      "model_state": model.state_dict()
+    )
+```
+#set text(size: 11pt)
 
 == (!!) GitHub CI + Slurm Clusters <github_ci_slurm>
 
@@ -686,7 +732,28 @@ TODO
 
 == Tip: Mixing PyTorch and Jax
 
-TODO
+There are Pros to each framework!
+
+Can you use both and get the best of both worlds? --> *Yes!*
+
+- #link("https://github.com/mila-iqia/torch_jax_interop", "torch-jax-interop") (made by me, at Mila)
+  - Zero-copy conversion on the GPU!
+
+```python
+import torch
+import jax.numpy as jnp
+from torch_jax_interop import jax_to_torch, torch_to_jax
+
+@jax_to_torch
+def some_jax_function(x: jnp.ndarray) -> jnp.ndarray:
+    return x + jnp.ones_like(x)
+
+some_torch_tensor = torch.arange(5, device="cuda")
+torch_output = some_jax_function(some_torch_tensor)
+```
+
+Also: #link("https://github.com/google/torchax", "torchax") (Different approach, made by Google.)
+
 
 
 = Case studies
