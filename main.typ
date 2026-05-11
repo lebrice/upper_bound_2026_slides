@@ -676,7 +676,7 @@ class SwiGLU(nn.Module):
 
 == Weights & Biases (WandB)
 
-TODO
+/ TODO: Slide on useful tips and tricks on using Weights and Biases.
 
 = Testing for ML code
 
@@ -725,6 +725,16 @@ def test_train_step_is_reproducible(seed: int, tensor_regression):
     )
 ```
 #set text(size: 11pt)
+
+== Case Study: Test-Driven Debugging of PyTorch CUDA Code
+
+/ TODO:
+
+  Slide(s) telling the story of user coming in with custom PyTorch module with custom forward/backward passes.
+  Using tests to cement the setup, before iteratively debugging and optimizing the code.
+
+  -> Test as a guardrail against regressions, and as a way to validate the fixes.
+
 
 == (!!) GitHub CI + Slurm Clusters <github_ci_slurm>
 
@@ -789,11 +799,47 @@ def test_train_step_is_reproducible(seed: int, tensor_regression):
 
 == Dataloader Bottlenecks
 
-TODO:
+/ TODO: Profiler output showing the GPU doing nothing while waiting for a batch of data.
+
+#pagebreak()
+
+*Solution*
+
+```python
+dataloader = DataLoader(
+    dataset,
+    batch_size=64,
+    num_workers=4,  # <-- Too low --> GPU waits for data
+    pin_memory=True, # <-- Useful for GPU training
+    prefetch_factor=2, # <-- Useful for GPU training
+)
+data_transfer_stream = torch.cuda.Stream()
+
+for batch in dataloader:
+    # Use cuda streams to overlap data transfer and training step
+    with torch.cuda.stream(data_transfer_stream):
+        batch = batch.to(device, non_blocking=True)
+    # Training step on the main stream
+    trainin_step(batch)
+```
+
+#pagebreak()
+
+/ TODO: Profiler output showing the overlap between loading and training
+
 
 == Using the filesystem efficiently
 
 TODO
+
+
+== RL With Simulation on CPU
+
+- Real Examples of sub-optimal workflows → diagnostic → fix → Outcome
+/ TODO:
+  Diagram showing the workflow of an RL experiment using simulation on the CPU. Simulation is very slow, and increasing the number of workers makes this slower!
+
+
 
 == Job Packing
 
@@ -825,23 +871,16 @@ Also: #link("https://github.com/google/torchax", "torchax") (Different approach,
 
 
 
-= Case studies
+// = Case studies
 
-
-== RL With Simulation on CPU
-
-- Real Examples of sub-optimal workflows → diagnostic → fix → Outcome
-/ TODO:
-  Diagram showing the workflow of an RL experiment using simulation on the CPU. Simulation is very slow, and increasing the number of workers makes this slower!
 
 
 == Efficient Checkpointing
 
-TODO
+/ TODO:
+  Slide giving link to the Distributed Checkpointing guide of PyTorch (and reference to the TorchTitan implementation.)
 
-== Test-Driven Debugging of PyTorch CUDA Code
 
-TODO
 
 = Ongoing work and open problems
 
