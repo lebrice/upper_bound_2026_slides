@@ -1,1 +1,2 @@
 github_ci_example.png filter=lfs diff=lfs merge=lfs -text
+debugging_multi_gpu_job.mp4 filter=lfs diff=lfs merge=lfs -text

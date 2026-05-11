@@ -62,15 +62,41 @@ What this talk is *not* about:
 
 == What is a Compute cluster, really? <switches>
 
-/ TODO:
-  Slide describing the nodes / switches / storage servers.
+*Components*:
+- *Login Nodes*: submit jobs, edit code, transfer files. *Never run heavy workloads here!*
+- *Compute Nodes*: machines with GPUs/CPUs — these run your jobs
+- *Storage Servers*: shared distributed filesystem (Lustre, BeeGFS) accessible from all nodes
+- *Network Switches*: the fabric connecting nodes; placement affects inter-node bandwidth
 
-  Interesting info for everyone, even veterans:
-  - Relative bandwidth of different communication paths (intra-node GPU-GPU, intra-node GPU-CPU, inter-node GPU-CPU, inter-node CPU-CPU)
-  - Intro to "switches", impact in distributed jobs (controlled somewhat with `--switches` of sbatch)
-  - Distributed filesystem implications:
-    - Filesystem striping across multiple storage servers --> Higher throughput for large datasets
-    - But also higher latency for small files --> Implications for checkpointing, logging, etc.
+/ TODO: Add a Diagram of a compute cluster
+
+// Component Connection,Technology Standard,Typical Bandwidth (Current Gen)
+// GPU ↔ GPU Memory,HBM3 / HBM3e,3.3 TB/s – 8.0 TB/s
+// GPU ↔ GPU (Within Node),NVLink 4.0 / 5.0,900 GB/s – 1.8 TB/s
+// GPU ↔ CPU,PCIe Gen 5 / NVLink-C2C,64 GB/s – 900 GB/s
+// CPU ↔ System RAM,DDR5 / LPDDR5X,300 GB/s – 500 GB/s
+// Node ↔ Node (Network),InfiniBand / 400G+ Ethernet,50 GB/s – 100 GB/s per NIC
+// Node ↔ Local Storage,PCIe Gen 5 NVMe Arrays,14 GB/s – 60+ GB/s
+
+// *Bandwidth hierarchy* (approximate):
+// #table(
+//   columns: (auto, auto),
+//   stroke: none,
+//   inset: (y: 3pt),
+//   [GPU ↔ GPU (NVLink, same node)], [~600 GB/s],
+//   [GPU ↔ CPU (PCIe, same node)],   [~32 GB/s],
+//   [Node ↔ Node (InfiniBand)],       [~200 GB/s],
+//   [Node ↔ Storage (network FS)],    [~10 GB/s],
+// )
+
+#pagebreak()
+
+*Network Switches*: nodes are grouped under switches in a hierarchy. Jobs spread across many switches pay extra latency. `sbatch --switches=1` tells Slurm to prefer nodes under a single switch.
+
+*Distributed Filesystem implications*:
+- Data is _striped_ across storage servers → high throughput for large sequential reads
+- High _metadata latency_ for small files (each `open()` is a network round-trip)
+- Avoid millions of tiny files — prefer `.tar` shards, HDF5, WebDataset, or copy to `$SLURM_TMPDIR`
 
 
 
@@ -242,10 +268,9 @@ Proper checkpointing is *crucial*!
 - Enables breaking up long jobs into smaller chunks (#ref(<job_chunking>))
 - Makes jobs resilient to failures (e.g. hardware failure, software bugs, etc.)
 
-Checkpoint become critical for large-scale jobs.
-
-- Consider using #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [Distributed Checkpointing]) when working with large models and multi-GPU/multi-Node jobs.
+- Consider using #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [Distributed Checkpointing]) when working with large models and multi-GPU jobs.
   - Also see the TorchTitan talk here at Upper Bound 2026!
+  - Using "Async" mode enables more overlap between checkpointing and training
 
 
 == Code Checkpointing <code_checkpointing>
@@ -428,43 +453,44 @@ pyarrow = { index = "pypi" }
 rdkit = { index = "pypi" }
 ```
 
-== Case Study - UV + Flash-attn
+== Example: UV + Flash-attn
 
 Flash-Attention is notoriously difficult to deal with:
 - pre-built wheels are not always available
 - Building from source is heavy (terrible on login nodes)
   - 100s of threads, takes a very long time
 
-*Solution 1*: UV can set environment variables when building a specific package!
+*Solution 1*: Use a prebuilt wheel from the DRAC wheelhouse (works only on DRAC)
 
-  ```toml
-  #pyproject.toml
-  [tool.uv.extra-build-variables.flash-attn]
-  MAX_JOBS = "1"
-  FLASH_ATTENTION_SKIP_CUDA_BUILD = "0"
-  TORCH_CUDA_ARCH_LIST = "9.0"
-  ```
+// / TODO: Show a config that uses the DRAC wheelhouse when --extra drac and also works otherwise?
+
+```toml
+# pyproject.toml
+[[tool.uv.index]]
+name = "drac-gentoo2023-generic"
+url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/generic"
+format = "flat"
+explicit = true
+
+[tool.uv.sources]
+# Use the pre-built wheel for flash-attn from the DRAC wheelhouse
+flash-attn = { index = "drac-gentoo2023-generic" }
+```
+
 
 #pagebreak()
 
-*Solution 2*: Use a prebuilt wheel from the DRAC wheelhouse (works only on DRAC)
+*Solution 2*: Build from source, and use a neat UV feature:
 
-/ TODO: Show a config that uses the DRAC wheelhouse when --extra drac and also works otherwise?
+UV can set environment variables when building a specific package!
 
-  ```toml
-  # pyproject.toml
-  [[tool.uv.index]]
-  name = "drac-gentoo2023-generic"
-  url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/generic"
-  format = "flat"
-  explicit = true
-
-  [tool.uv.sources]
-  # Use the pre-built wheel for flash-attn from the DRAC wheelhouse
-  flash-attn = { index = "drac-gentoo2023-generic" }
-  ```
-
-
+```toml
+#pyproject.toml
+[tool.uv.extra-build-variables.flash-attn]
+MAX_JOBS = "1"
+FLASH_ATTENTION_SKIP_CUDA_BUILD = "0"
+TORCH_CUDA_ARCH_LIST = "9.0"
+```
 
 
 = Interactive Development and Debugging
@@ -495,11 +521,9 @@ Install with `uv tool install milatools`
   - Waits for job to start;
   - Opens `my_project` folder in VSCode with Remote-SSH connected to the compute node.
 
-== Smart SSH Config Entries: mila-cpu <mila-cpu>
+== Useful SSH Config Entries: mila-cpu <mila-cpu>
 
-`mila init` creates an SSH config entry called `mila-cpu`.
-
-`ssh mila-cpu`:
+`mila init` creates an SSH config entry called `mila-cpu`. When used with `ssh mila-cpu`:
 1. Connects to the Mila cluster
 2. Checks for a running cpu job with name `'mila-cpu'`.
   - If a job is found, connect to it.
@@ -507,30 +531,19 @@ Install with `uv tool install milatools`
 3. Creates a new interactive terminal attached to the job.
 4. Job persists for 10 minutes after exiting.
 
+```sshconfig
+Host mila-cpu
+  (...)
+  ProxyCommand ssh mila "./milatools/slurm-proxy.sh mila-cpu --mem=8G"
+  RemoteCommand ./milatools/entrypoint.sh mila-cpu
+```
 
 - Useful for Remote-SSH with vscode (alternative to #ref(<mila-code>))
-- Can be modified for any cluster and resource type (e.g. `mila-gpu`, `tamia-cpu`, etc.)
+// - Can be modified for any cluster and resource type (e.g. `mila-gpu`, `tamia-cpu`, etc.)
 
 == Typical Research Workflow - Mila
 
-1. `mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
-
-- `mila init`:
-  - Sets up SSH configuration.
-  - Checks access to clusters
-  - Gives instructions for setting up access to Mila/DRAC clusters.
-
-- `mila code --cluster=<cluster> [project_path] [--salloc resources]`
-
-  Works with *_any_* Slurm cluster accessible with SSH
-  1. Requests an interactive job with `salloc <resources>`;
-  2. Waits for job to start;
-  3. Opens `project_path` in VSCode with Remote-SSH connected to the compute node.
-  - Can also connect to an already running job with `--job <job_id>`.
-
-== Smart SSH Config Entries: mila-cpu <mila-cpu>
-
-== Typical Research Workflow - Mila
+/ TODO: Unsure where to place this slide.
 
 1. `mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
 
@@ -540,21 +553,99 @@ Install with `uv tool install milatools`
 
 4. Move to other cluster if necessary, use same loop (with `--cluster=<cluster>`).
 
+
 == Debugging Multi-GPU Jobs
 
-/ TODO: Slide showing how to use `srun` + attaching the vscode debugger to each task, to have the VsCode debugger attached to each task in a multi-node setup.
+Easiest:
 
+#set text(size: 9pt)
 
-== Debugging Multi-Node Jobs
+```json
+{
+  "configurations": [
+    {
+      // Loosely based on https://medium.com/@franoisponchon/pytorch-ddp-debugging-in-vscode-4fb162eba07e
+      "name": "Debug job with torchrun (Single-node)",
+      "type": "debugpy",
+      "request": "launch",
+      // we launch a module...
+      "module": "torch.distributed.run",
+      // with args...
+      "args": "--nproc_per_node=${input:NumGPUs} ${file} ${command:pickArgs}",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    }
+  ]
+}
+```
 
-/ TODO: Slide showing how to use `srun` + attaching the vscode debugger to each task, to debug each gpu/node in a multi-node setup.
+#set text(size: 11pt)
+
+== Debugging Multi-Node Jobs with VSCode
+
+Launch `debugpy` on each task with a unique port, then attach VSCode to each process:
+
+```bash
+# job.sh — each task listens on a different port (5678, 5679, …)
+srun python -m debugpy --listen 0.0.0.0:$((5678 + SLURM_PROCID)) \
+    --wait-for-client main.py
+```
+
+```json
+// .vscode/launch.json
+{ "configurations": [
+    { "type": "debugpy", "request": "attach", "name": "Attach debugger to running task",
+      "connect": { "host": "${input:NodeHostname}", "port": "${input:DebugpyPort" } },
+  ],
+}
+```
+
+See: https://github.com/lebrice/mila-docs/blob/8919d6a352e7c6f3ec0c99441571400848ce8ae5/docs/examples/advanced/imagenet/.vscode/launch.json for the full VsCode launch configuration.
+
 
 == Profiling with TensorBoard + Torch Profiler
 
-/ TODO: Slide showing Tensorboard + torch-tb-profiler
+Basic setup:
+
+```python
+import torch
+from torch.profiler import profile, tensorboard_trace_handler, schedule
+
+with profile(
+    schedule=schedule(wait=1, warmup=1, active=5),
+    on_trace_ready=tensorboard_trace_handler("./log/profiler", worker_name=f"rank_{RANK}"),
+    record_shapes=True,
+    with_modules=True,
+    profile_memory=True,
+    with_flops=True,
+) as prof:
+    for batch in dataloader:
+        train_step(batch)
+        prof.step()   # <-- must call this every step
+```
+
+#pagebreak()
+
+```bash
+uvx --with=torch-tb-profiler tensorboard --logdir=./log/profiler
+```
+
+Opens an interactive view in the browser with:
+- GPU utilization timeline (spot idle gaps instantly)
+- Kernel-level breakdown (which ops dominate)
+- Memory usage over time
+- Operator-level stack traces
+
+VsCode automatically forwards the port so the profiler UI is available on localhost:6006 (for example with #ref(<mila-code>)).
 
 
-= Writing Great ML Code
+#pagebreak()
+
+/ DEMO :
+
+  Interactive demo (`mila code` + Debugging with VsCode + Profiling with TensorBoard + Torch Profiler)
+
+= Tips and Tricks to Write Better ML Code
 
 == Einops <einops>
 
@@ -714,7 +805,50 @@ class SwiGLU(nn.Module):
 
 == Weights & Biases (WandB)
 
-/ TODO: Slide on useful tips and tricks on using Weights and Biases.
+*No internet on compute nodes?* Log offline, sync later:
+
+```bash
+export WANDB_MODE=offline
+uv run python train.py        # logs to ./wandb/run-*/
+# Later, from the login node:
+wandb sync --sync-all
+```
+
+Or in code: `wandb.init(mode="offline")`.
+
+#pagebreak()
+
+*Useful tips*:
+
+- Save Slurm environment variables in the wandb config!
+```python
+import os
+import wandb
+run = wandb.init(
+  ...,
+  config=vars(args) | {
+    "env": {k: v for k, v in os.environ.items() if k.startswith("SLURM_")}
+  }
+)
+```
+
+#pagebreak()
+
+- *Artifacts*: version datasets, checkpoints, and results — reproducible and shareable
+  ```python
+  artifact = wandb.Artifact("model-v1", type="model")
+  artifact.add_file("checkpoint.pt")
+  run.log_artifact(artifact)
+  ```
+
+- *Sweeps*: distributed hyperparameter search — one sweep controller, many agents
+  ```bash
+  wandb sweep sweep.yaml          # define search space, returns sweep ID
+  wandb agent <entity>/<project>/<sweep_id>   # run on each compute node
+  ```
+
+- `WANDB_SILENT=true` suppresses noisy logging in job `.out` files
+- `WANDB_DIR=$SLURM_TMPDIR` keeps run files on fast local storage during the job
 
 
 
@@ -768,15 +902,32 @@ def test_train_step_is_reproducible(seed: int, tensor_regression):
 ```
 #set text(size: 11pt)
 
-== Case Study: Test-Driven Debugging of PyTorch CUDA Code
+== Case Study: Test-Driven Debugging of PyTorch Code
 
-/ TODO:
+A researcher is having issues with a custom PyTorch op with hand-written forward + backward passes.
+It works correctly for small inputs, but explodes and CUDA OOMs for larger inputs.
 
-  Slide(s) telling the story of user coming in with custom PyTorch module with custom forward/backward passes.
-  Using tests to cement the setup, before iteratively debugging and optimizing the code.
+*Step 1*: Pin the forward/backward passes with a test:
 
-  -> Test as a guardrail against regressions, and as a way to validate the fixes.
+#set text(size: 9pt)
 
+```python
+@pytest.mark.parametrize("batch_size", [16, 128])  # works for 16, blows up for 128
+def test_custom_op_forward_backward(tensor_regression, batch_size: int):
+    x = torch.randn(batch_size, 128, dtype=torch.float64, requires_grad=True, device="cuda")
+    out = MyCustomOp.apply(x)
+    loss = out.sum()
+    loss.backward()
+    tensor_regression.check({
+        "input": x,
+        "output": out,
+        "input_grad": x.grad,
+    })
+```
+
+#set text(size: 11pt)
+
+*Step 2*: Iterative debugging / optimization. Always know whenever you break the forward/backward pass!
 
 == (!!) GitHub CI + Slurm Clusters <github_ci_slurm>
 
@@ -841,7 +992,33 @@ def test_train_step_is_reproducible(seed: int, tensor_regression):
 
 == Dataloader Bottlenecks
 
-/ TODO: Profiler output showing the GPU doing nothing while waiting for a batch of data.
+*Symptom*: GPU utilization is low even though the model is large and batches are big.
+
+#set text(size: 8pt)
+*Profiler timeline — `num_workers=0` (GPU starved):*
+#grid(
+  columns: (3.5em, 2fr, 1fr, 2fr, 1fr, 2fr, 1fr),
+  rows: (1.3em, 1.3em),
+  gutter: 2pt,
+  align: horizon + center,
+  [*GPU*],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train],
+    rect(fill: red.lighten(55%), width: 100%, height: 1.3em, inset: 2pt)[*idle*],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train],
+    rect(fill: red.lighten(55%), width: 100%, height: 1.3em, inset: 2pt)[*idle*],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train],
+    rect(fill: red.lighten(55%), width: 100%, height: 1.3em, inset: 2pt)[*idle*],
+  [*CPU*],
+    rect(fill: white, width: 100%, height: 1.3em)[],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load],
+    rect(fill: white, width: 100%, height: 1.3em)[],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load],
+    rect(fill: white, width: 100%, height: 1.3em)[],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load],
+)
+#set text(size: 11pt)
+
+GPU blocks on every batch — wasted compute budget!
 
 #pagebreak()
 
@@ -867,26 +1044,91 @@ for batch in dataloader:
 
 #pagebreak()
 
-/ TODO: Profiler output showing the overlap between loading and training
+#set text(size: 8pt)
+*Profiler timeline — `num_workers=4, pin_memory=True` (overlapped):*
+#grid(
+  columns: (3.5em, 1fr, 1fr, 1fr, 1fr, 1fr, 1fr),
+  rows: (1.3em, 1.3em),
+  gutter: 2pt,
+  align: horizon + center,
+  [*GPU*],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train 0],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train 1],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train 2],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train 3],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train 4],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train 5],
+  [*CPU*],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[prefetch 1],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[prefetch 2],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[prefetch 3],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[prefetch 4],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[prefetch 5],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[prefetch 6],
+)
+#set text(size: 11pt)
+
+GPU stays fully busy — the next batch is always ready before the step ends.
 
 
 == Using the filesystem efficiently
 
-/ TODO: Slide on how to best leverage the filesystems?
+#table(
+  columns: (1fr, 1fr),
+  stroke: 0.5pt,
+  inset: 8pt,
+  [*`$SLURM_TMPDIR`* (local SSD)],  [*`$SCRATCH`* (shared network FS)],
+  [Fast — no network overhead],      [Slower — every read/write goes over the network],
+  [Private per-job, per-node],       [Shared across all nodes and jobs],
+  [Ideal for: dataset copies, build artifacts, intermediate outputs], [Ideal for: final checkpoints, logs, results to keep],
+  [*Disappears when job ends!*],     [Persistent],
+)
 
-- `$SLURM_TMPDIR`: Fast local storage (perfect for lost of small reads/writes)
-- `$SCRATCH`: Slower, but shared between nodes, good for checkpoints, logs, etc.
+#pagebreak()
+
+*Best practice — copy dataset in at job start, results out at job end*:
+```bash
+cp -r $SCRATCH/datasets/my_dataset $SLURM_TMPDIR/
+
+python train.py \
+    --data-dir=$SLURM_TMPDIR/my_dataset \
+    --checkpoint-dir=$SCRATCH/checkpoints/
+
+cp -r $SLURM_TMPDIR/final_results $SCRATCH/
+```
+
+*Avoid millions of small files* on the shared FS — high metadata latency kills throughput.
+Prefer: WebDataset (`.tar` shards), HDF5, or SQLite over directories of individual images/arrays.
 
 
 
 == RL With Simulation on CPU
 
-// - Real Examples of sub-optimal workflows → diagnostic → fix → Outcome
-/ TODO:
-  Diagram showing the workflow of an RL experiment using simulation on the CPU. Simulation is very slow, and increasing the number of workers makes this slower!
+#align(center)[
+  #fletcher.diagram(
+    node-stroke: 0.8pt,
+    spacing: (3em, 1.2em),
+    node((0, 0), [ENV worker 0], fill: green.lighten(70%), shape: rect),
+    node((0, 1), [ENV worker 1], fill: green.lighten(70%), shape: rect),
+    node((0, 2), [ENV worker 2], fill: green.lighten(70%), shape: rect),
+    node((2, 1), [Replay\ Buffer], fill: yellow.lighten(60%)),
+    node((4, 1), [GPU Policy\ (training)], fill: blue.lighten(70%)),
+    edge((0, 0), (2, 1), "->", label: [experience]),
+    edge((0, 1), (2, 1), "->"),
+    edge((0, 2), (2, 1), "->"),
+    edge((2, 1), (4, 1), "<->", label: [batch / update]),
+    edge((4, 1), (0, 0), "->", label: [new weights], bend: 35deg),
+    edge((4, 1), (0, 1), "->"),
+    edge((4, 1), (0, 2), "->", bend: -35deg),
+  )
+]
 
-  Solution: OMP_NUM_THREADS=1 for the simulation workers, to prevent oversubscription of CPU cores.
+*Problem*: Each worker uses Numpy, which detects N-cpus available cpus. With N workers and default `OMP_NUM_THREADS`, you get `N x OMP_NUM_THREADS` threads competing for N_CPU cores → constant context-switching → adding more workers makes simulation *slower*.
 
+*Fix*:
+```bash
+export OMP_NUM_THREADS=1
+```
 
 // == Job Packing
 
@@ -894,11 +1136,10 @@ for batch in dataloader:
 == Tip: Mixing PyTorch and Jax
 
 There are Pros to each framework!
-
 Can you use both and get the best of both worlds? --> *Yes!*
 
-- #link("https://github.com/mila-iqia/torch_jax_interop", "torch-jax-interop") (made by me, at Mila)
-  - Zero-copy conversion on the GPU!
+- #link("https://github.com/mila-iqia/torch_jax_interop", "torch-jax-interop") (made by us at Mila)
+  - Uses `dlpack` api from Jax/PyTorch, with Zero-copy conversion on the GPU!
 
 ```python
 import torch
@@ -920,9 +1161,25 @@ Also: #link("https://github.com/google/torchax", "torchax") (Different approach,
 
 == Efficient Checkpointing
 
-/ TODO:
-  Slide giving link to the Distributed Checkpointing guide of PyTorch (and reference to the TorchTitan implementation.)
+For large multi-GPU models, use `torch.distributed.checkpoint` — each rank saves/loads its own shard *in parallel*:
 
+// #set text(size: 9pt)
+// ```python
+// import torch.distributed.checkpoint as dcp
+// # Save (all ranks participate simultaneously)
+// state = {"model": model, "optimizer": optimizer, "step": step}
+// dcp.save(state, checkpoint_id=f"{checkpoint_dir}/step_{step}")
+// # Load (resharding supported — can change number of GPUs between runs!)
+// dcp.load(state, checkpoint_id=f"{checkpoint_dir}/step_{step}")
+// ```
+// #set text(size: 11pt)
+
+Advantages over rank-0-only checkpointing:
+- *Much faster* — I/O is parallelized across all ranks
+- *Reshard on load* — switch from 8 to 16 GPUs without re-saving
+- *FSDP-aware* — handles sharded optimizer states correctly
+
+See: #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [PyTorch Distributed Checkpointing tutorial]) as well as the talk from the *TorchTitan* team here at Upper Bound 2026!
 
 
 = Ongoing work and open problems
@@ -943,10 +1200,35 @@ Cluv: *Cl* uster + *uv*: Simple CLI tool to dispatch jobs and synchronize uv pro
 
 Research Template Repository: https://mila-iqia.github.io/ResearchTemplate/
 
+/ TODO: Highlight some of the features of the template repo.
 
 == AutoResearch
 
+*AutoResearch* + *Slurm*: an AI agent framework that autonomously conducts experiments on Slurm compute clusters.
 
-TODO
+#align(center)[
+  #fletcher.diagram(
+    node-stroke: 0.8pt,
+    spacing: (2.5em, 2em),
+    node((1, 0), [*LLM Agent*\ (Hypothesize)], fill: purple.lighten(70%)),
+    node((2, 1), [Slurm Job\ (`sbatch`)], fill: blue.lighten(70%)),
+    node((1, 2), [Result\ Analysis], fill: green.lighten(70%)),
+    node((0, 1), [Knowledge\ Base], fill: orange.lighten(70%)),
+    edge((1, 0), (2, 1), "->", label: [submit]),
+    edge((2, 1), (1, 2), "->", label: [results + logs]),
+    edge((1, 2), (0, 1), "->", label: [update]),
+    edge((0, 1), (1, 0), "->", label: [context]),
+  )
+]
+
+1. *Hypothesize*: LLM agent proposes an experiment (architecture, hyperparameters, code changes)
+2. *Submit*: agent calls `sbatch` to run the experiment on real GPUs
+3. *Monitor*: polls for job completion, reads logs and metrics
+4. *Analyze*: LLM interprets results and refines its research direction
+5. *Repeat* → progressively more targeted experiments
+
+*Why Slurm?* Clean, sandboxed interface — the agent requests compute through the standard scheduler, inheriting all resource management and isolation for free.
+
+Work in progress at Mila — stay tuned!
 
 = Q&A
