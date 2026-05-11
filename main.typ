@@ -119,214 +119,66 @@ What this talk is *not* about:
 
 - Mila cluster has preemptible long jobs and limited non-preemptible short jobs.
 
-= Slurm tips and tricks
+= Getting Connected
 
-== Useful Slurm Commands
+== milatools <milatools>
 
-- *`sbatch`* `--ntasks=4 --gpus=4 --cpus-per-task=16 --mem=32G --time=03:00:00 job.sh`
-  - Requests resources (GPUs, CPUs, RAM) for one or more _*tasks*_ and runs a job script (`job.sh`) on one or more of the cluster's compute nodes.
-- *`salloc`* `--ntasks=4 --gpus=4 --cpus-per-task=16 --mem=32G --time=03:00:00`
-  - Similar to sbatch, but allocates resources and gives you an interactive shell on the compute node.
-  - Useful for debugging, testing, etc.
+Small Python package developed by the IDT team at Mila.
 
-- *`srun`* `python main.py`
-  - Runs a "command" (e.g. `python main.py`) once per _*task*_ inside a job.
-  - (Can also be used to create jobs, but we don't recommend it)
+Install with `uv tool install milatools`
 
-== `srun` is all you need!
+- `mila init`:
+  - Sets up SSH configuration.
+  - Checks access to clusters
+  - Gives instructions for setting up access to Mila/DRAC clusters.
 
-`srun` is _*the*_ way to run commands in a SLURM job.
+- `mila code --cluster=<cluster> [project_path] [--salloc resources]`
 
-- `srun` takes care of launching the command on the right nodes, with the right environment variables,
-- Slurm partitions the resources (CPUs, GPUs, and memory) properly across tasks!
+  Works with *_any_* Slurm cluster accessible with SSH
+  1. Requests an interactive job with `salloc <resources>`;
+  2. Waits for job to start;
+  3. Opens `project_path` in VSCode with Remote-SSH connected to the compute node.
+  - Can also connect to an already running job with `--job <job_id>`.
 
-- `srun` can be used to spawn different commands for each task (with `--multi-prog`)
-  - Hyper-Parameter Sweeps, or Coordinator / Worker setups for distributed training, etc.
+== mila code <mila-code>
 
+`mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
+  - Requests an interactive job on the Mila cluster with `salloc` and requested resources;
+  - Waits for job to start;
+  - Opens `my_project` folder in VSCode with Remote-SSH connected to the compute node.
 
-- (very niche): Slurm can even allocate different resources to different tasks within the same job!
-    ```bash
-    srun -n1 -c8 --mem-per-cpu=2gb server : -n16 --mem-per-cpu=1gb client
-    ```
+== Useful SSH Config Entries: mila-cpu <mila-cpu>
 
+`mila init` creates an SSH config entry called `mila-cpu`. When used with `ssh mila-cpu`:
+1. Connects to the Mila cluster
+2. Checks for a running cpu job with name `'mila-cpu'`.
+  - If a job is found, connect to it.
+  - If no job is found, submit a new one with `sbatch`.
+3. Creates a new interactive terminal attached to the job.
+4. Job persists for 10 minutes after exiting.
 
-
-
-== Example: Easy Job Packing with `srun`
-
-- `srun --ntasks-per-gpu=2 uv run python main.py`
-  - Easily run multiple seeds with something like `seed=int(os.environ["SLURM_PROCID"])` in python!
-
-What about when we want very different commands for each task?
-
--> `srun --multi-prog` to the rescue!
-
-  ```text
-  # task_commands.txt
-  0 python train.py --lr=0.01  --batch-size=128
-  1 python train.py --lr=0.001 --batch-size=128
-  2 python train.py --lr=0.01  --batch-size=256
-  3 python train.py --lr=0.001 --batch-size=256
-  ```
-  ```bash
-  srun --ntasks=4 --ntasks-per-gpu=4 --multi-prog task_commands.txt
-  ```
-
-(See #link("https://slurm.schedmd.com/srun.html#OPT_multi-prog", [`srun` documentation]))
-
-
-
-== Easy job submission <job_submission>
-
-*Problem*: Having the commands in your job script leads to having to manage lots of jobs scripts!
-
-*Solution*
-
-#columns(2)[
-  job.sh:
-  ```bash
-  #!/bin/bash
-  #SBATCH --time=01:00:00
-  #SBATCH --gpus=1
-  #SBATCH --cpus-per-task=4
-  #SBATCH --mem-per-cpu=4G
-  #SBATCH --output=logs/%j.out
-
-  # (setup code)
-
-  srun python main.py "$@"
-  ```
-  #colbreak()
-
-  In a terminal:
-  ```console
-  $ sbatch job.sh --lr=0.01
-  $ sbatch job.sh --lr=0.001
-  $ sbatch job.sh --lr=0.001 --nlayers=32
-  ```
-]
-
-== Use Job Dependencies to prevent waste <job_dependencies>
-
-*problem*: Submitting a lot of jobs, but some of them fail (e.g. bug in the code, cluster instability, etc.) --> Waste of resources and time!
-
-This pairs nicely with the #ref(<job_submission>) setup from the previous slide:
-
-```bash
-# Hyper-parameter sweep
-jobid_a=$(sbatch --parsable job.sh --lr=0.01)
-jobid_b=$(sbatch --parsable job.sh --lr=0.02)
-jobid_c=$(sbatch --parsable job.sh --lr=0.03)
-
-# Train once with best hyper-parameters, *only if all runs succeed*!
-sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c \
-        job.sh --lr=best
+```sshconfig
+Host mila-cpu
+  (...)
+  ProxyCommand ssh mila "./milatools/slurm-proxy.sh mila-cpu --mem=8G"
+  RemoteCommand ./milatools/entrypoint.sh mila-cpu
 ```
 
+- Useful for Remote-SSH with vscode (alternative to #ref(<mila-code>))
+// - Can be modified for any cluster and resource type (e.g. `mila-gpu`, `tamia-cpu`, etc.)
 
-== Job Chunking: Get scheduled faster <job_chunking>
+== Typical Research Workflow - Mila
 
+1. `mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
 
-Assuming your job script does #ref(<checkpointing>, supplement:"checkpointing") correctly, you can break up a long job into smaller chunks, which can get scheduled faster and reduce the time needed to get your results!
+2. Develop code iteratively, using the VSCode terminal (inside compute node) to run commands.
 
-```bash
-#!/bin/bash
-# Job Chain Example
-num_chunks=5
-jobid=$(sbatch --parsable --time=03:00:00 job.sh "$@")
-for i in $(seq 2 $num_chunks); do
-    jobid=$(sbatch --parsable --dependency=afterok:$jobid --kill-on-invalid-dep=yes
-            --time=03:00:00 job.sh "$@")
-done
-```
+3. Once the code is ready, submit a batch job with `sbatch` to run the code on more GPUs, for longer, etc.
 
-== Flexible Job Layout
-
-On clusters that don't enforce full-node allocations (See #ref(<clusters>, supplement: "clusters")), being flexible about where the GPUs are laid out can help your jobs get scheduled faster!
-
-*Suggestion*
-
-- Go from this: `sbatch --nodes=2 --ntasks-per-node=4 --gpus-per-task=1 job.sh`
-  - Asks for two full nodes with 4 GPUs each
-  - Can take a long time to schedule
-
-- To this: `sbatch `*`--nodes=1-8 --ntasks=8 --switches=1`*` --gpus-per-task=1 job.sh`
-  - Asks for 8 tasks with 1 GPU each, spread across 1 to 8 nodes, but preferably on a single switch
-  - Performance hit is minimized when using `--switches=1`. (Recall: #ref(<switches>, supplement: "switches"))
-
-#linebreak()
-
-*Recommendations*
-- Be as flexible as possible, and use `sbatch --switches=1@3600`
-- Monitor the throughput degradation, find sweet-spot.
+4. Move to other cluster if necessary, use same loop (with `--cluster=<cluster>`).
 
 
-== Checkpointing is a must! <checkpointing>
-
-Proper checkpointing is *crucial*!
-- Enables running longer jobs on clusters with preemption (e.g. the Mila cluster)
-- Enables breaking up long jobs into smaller chunks for quicker scheduling (#ref(<job_chunking>))
-- Makes jobs resilient to failures (e.g. hardware failure, software bugs, etc.)
-
-- *Tip*: Consider using #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [Distributed Checkpointing]) when working with large models and multi-GPU jobs.
-  - (More info on this in the #ref(<efficient-checkpointing>) section later)
-  - Also see the TorchTitan talk here at Upper Bound 2026!
-  - Using "Async" mode enables more overlap between checkpointing and training
-
-
-== Code Checkpointing <code_checkpointing>
-
-/ *problem*:
-  1. Submit job A with sbatch
-  2. Modify the Python scripts
-  3. Submit job B with sbatch
-  4. Job A starts running with the *modified* code (BAD!)
-  5. Job B starts running with the modified code
-  6. Results are weird???
-
-*Solution*:
-1. `safe_sbatch`: Prevents the job from being submitted if there are uncommitted changes.
-2. Job script uses the code at the commit when the job was submitted ("code checkpointing")
-
-#pagebreak()
-
-Using Slurm + Git + #ref(<uv>) enables easy code checkpointing:
-
-safe_sbatch:
-```bash
-#!/bin/bash
-# safe_sbatch wrapper
-if [ -n "`git status --porcelain`" ]; then
-    echo "Your working directory is dirty! "
-    echo "Please add and commit changes before submitting a job."
-    exit 1
-fi
-export GIT_COMMIT=`git rev-parse HEAD`
-exec sbatch "$@"
-```
-
-```console
-safe_sbatch --gpus=1 --time=3-00:00:00 job.sh
-```
-
-#pagebreak()
-
-Job script creates a copy of the code at the _exact_ commit that was used to submit the job, in a temporary directory (`$SLURM_TMPDIR`), and runs the code from there.
-
-- Virtual environment is recreated in `/tmp` by #ref(<uv>) from the cache (also works in offline mode).
-// - Commands are run in the cloned project
-
-/ *Job.sh*: ```bash
-srun --ntasks-per-node=1 --ntasks=$SLURM_JOB_NUM_NODES bash -e <<END
-    cd $SLURM_TMPDIR
-    git clone $HOME/my_project
-    git -C $SLURM_TMPDIR/my_project checkout --detach $GIT_COMMIT
-    uv sync --directory $SLURM_TMPDIR/my_project
-END
-srun uv run --directory $SLURM_TMPDIR/my_project "$@"
-```
-
-= uv
+= Environment Management
 
 == uv <uv>
 
@@ -494,157 +346,214 @@ TORCH_CUDA_ARCH_LIST = "9.0"
 ```
 
 
-= Interactive Development and Debugging
+= Submitting Jobs
 
-== milatools <milatools>
+== Useful Slurm Commands
 
-Small Python package developed by the IDT team at Mila.
+- *`sbatch`* `--ntasks=4 --gpus=4 --cpus-per-task=16 --mem=32G --time=03:00:00 job.sh`
+  - Requests resources (GPUs, CPUs, RAM) for one or more _*tasks*_ and runs a job script (`job.sh`) on one or more of the cluster's compute nodes.
+- *`salloc`* `--ntasks=4 --gpus=4 --cpus-per-task=16 --mem=32G --time=03:00:00`
+  - Similar to sbatch, but allocates resources and gives you an interactive shell on the compute node.
+  - Useful for debugging, testing, etc.
 
-Install with `uv tool install milatools`
+- *`srun`* `python main.py`
+  - Runs a "command" (e.g. `python main.py`) once per _*task*_ inside a job.
+  - (Can also be used to create jobs, but we don't recommend it)
 
-- `mila init`:
-  - Sets up SSH configuration.
-  - Checks access to clusters
-  - Gives instructions for setting up access to Mila/DRAC clusters.
+== `srun` is all you need!
 
-- `mila code --cluster=<cluster> [project_path] [--salloc resources]`
+`srun` is _*the*_ way to run commands in a SLURM job.
 
-  Works with *_any_* Slurm cluster accessible with SSH
-  1. Requests an interactive job with `salloc <resources>`;
-  2. Waits for job to start;
-  3. Opens `project_path` in VSCode with Remote-SSH connected to the compute node.
-  - Can also connect to an already running job with `--job <job_id>`.
+- `srun` takes care of launching the command on the right nodes, with the right environment variables,
+- Slurm partitions the resources (CPUs, GPUs, and memory) properly across tasks!
 
-== mila code <mila-code>
-
-`mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
-  - Requests an interactive job on the Mila cluster with `salloc` and requested resources;
-  - Waits for job to start;
-  - Opens `my_project` folder in VSCode with Remote-SSH connected to the compute node.
-
-== Useful SSH Config Entries: mila-cpu <mila-cpu>
-
-`mila init` creates an SSH config entry called `mila-cpu`. When used with `ssh mila-cpu`:
-1. Connects to the Mila cluster
-2. Checks for a running cpu job with name `'mila-cpu'`.
-  - If a job is found, connect to it.
-  - If no job is found, submit a new one with `sbatch`.
-3. Creates a new interactive terminal attached to the job.
-4. Job persists for 10 minutes after exiting.
-
-```sshconfig
-Host mila-cpu
-  (...)
-  ProxyCommand ssh mila "./milatools/slurm-proxy.sh mila-cpu --mem=8G"
-  RemoteCommand ./milatools/entrypoint.sh mila-cpu
-```
-
-- Useful for Remote-SSH with vscode (alternative to #ref(<mila-code>))
-// - Can be modified for any cluster and resource type (e.g. `mila-gpu`, `tamia-cpu`, etc.)
-
-== Typical Research Workflow - Mila
-
-/ TODO: Unsure where to place this slide.
-
-1. `mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
-
-2. Develop code iteratively, using the VSCode terminal (inside compute node) to run commands.
-
-3. Once the code is ready, submit a batch job with `sbatch` to run the code on more GPUs, for longer, etc.
-
-4. Move to other cluster if necessary, use same loop (with `--cluster=<cluster>`).
+- `srun` can be used to spawn different commands for each task (with `--multi-prog`)
+  - Hyper-Parameter Sweeps, or Coordinator / Worker setups for distributed training, etc.
 
 
-== Debugging Multi-GPU Jobs
+- (very niche): Slurm can even allocate different resources to different tasks within the same job!
+    ```bash
+    srun -n1 -c8 --mem-per-cpu=2gb server : -n16 --mem-per-cpu=1gb client
+    ```
 
-Easiest:
 
-#set text(size: 9pt)
 
-```json
-{
-  "configurations": [
-    {
-      // Loosely based on https://medium.com/@franoisponchon/pytorch-ddp-debugging-in-vscode-4fb162eba07e
-      "name": "Debug job with torchrun (Single-node)",
-      "type": "debugpy",
-      "request": "launch",
-      // we launch a module...
-      "module": "torch.distributed.run",
-      // with args...
-      "args": "--nproc_per_node=${input:NumGPUs} ${file} ${command:pickArgs}",
-      "console": "integratedTerminal",
-      "justMyCode": false
-    }
-  ]
-}
-```
 
-#set text(size: 11pt)
+== Example: Easy Job Packing with `srun`
 
-== Debugging Multi-Node Jobs with VSCode
+- `srun --ntasks-per-gpu=2 uv run python main.py`
+  - Easily run multiple seeds with something like `seed=int(os.environ["SLURM_PROCID"])` in python!
 
-Launch `debugpy` on each task with a unique port, then attach VSCode to each process:
+What about when we want very different commands for each task?
+
+-> `srun --multi-prog` to the rescue!
+
+  ```text
+  # task_commands.txt
+  0 python train.py --lr=0.01  --batch-size=128
+  1 python train.py --lr=0.001 --batch-size=128
+  2 python train.py --lr=0.01  --batch-size=256
+  3 python train.py --lr=0.001 --batch-size=256
+  ```
+  ```bash
+  srun --ntasks=4 --ntasks-per-gpu=4 --multi-prog task_commands.txt
+  ```
+
+(See #link("https://slurm.schedmd.com/srun.html#OPT_multi-prog", [`srun` documentation]))
+
+
+
+== Easy job submission <job_submission>
+
+*Problem*: Having the commands in your job script leads to having to manage lots of jobs scripts!
+
+*Solution*
+
+#columns(2)[
+  job.sh:
+  ```bash
+  #!/bin/bash
+  #SBATCH --time=01:00:00
+  #SBATCH --gpus=1
+  #SBATCH --cpus-per-task=4
+  #SBATCH --mem-per-cpu=4G
+  #SBATCH --output=logs/%j.out
+
+  # (setup code)
+
+  srun python main.py "$@"
+  ```
+  #colbreak()
+
+  In a terminal:
+  ```console
+  $ sbatch job.sh --lr=0.01
+  $ sbatch job.sh --lr=0.001
+  $ sbatch job.sh --lr=0.001 --nlayers=32
+  ```
+]
+
+= Job Management
+
+== Use Job Dependencies to prevent waste <job_dependencies>
+
+*problem*: Submitting a lot of jobs, but some of them fail (e.g. bug in the code, cluster instability, etc.) --> Waste of resources and time!
+
+This pairs nicely with the #ref(<job_submission>) setup from the previous slide:
 
 ```bash
-# job.sh — each task listens on a different port (5678, 5679, …)
-srun python -m debugpy --listen 0.0.0.0:$((5678 + SLURM_PROCID)) \
-    --wait-for-client main.py
+# Hyper-parameter sweep
+jobid_a=$(sbatch --parsable job.sh --lr=0.01)
+jobid_b=$(sbatch --parsable job.sh --lr=0.02)
+jobid_c=$(sbatch --parsable job.sh --lr=0.03)
+
+# Train once with best hyper-parameters, *only if all runs succeed*!
+sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c \
+        job.sh --lr=best
 ```
 
-```json
-// .vscode/launch.json
-{ "configurations": [
-    { "type": "debugpy", "request": "attach", "name": "Attach debugger to running task",
-      "connect": { "host": "${input:NodeHostname}", "port": "${input:DebugpyPort" } },
-  ],
-}
+
+== Job Chunking: Get scheduled faster <job_chunking>
+
+
+Assuming your job script does #ref(<checkpointing>, supplement:"checkpointing") correctly, you can break up a long job into smaller chunks, which can get scheduled faster and reduce the time needed to get your results!
+
+```bash
+#!/bin/bash
+# Job Chain Example
+num_chunks=5
+jobid=$(sbatch --parsable --time=03:00:00 job.sh "$@")
+for i in $(seq 2 $num_chunks); do
+    jobid=$(sbatch --parsable --dependency=afterok:$jobid --kill-on-invalid-dep=yes
+            --time=03:00:00 job.sh "$@")
+done
 ```
 
-See: https://github.com/lebrice/mila-docs/blob/8919d6a352e7c6f3ec0c99441571400848ce8ae5/docs/examples/advanced/imagenet/.vscode/launch.json for the full VsCode launch configuration.
+== Flexible Job Layout
+
+On clusters that don't enforce full-node allocations (See #ref(<clusters>, supplement: "clusters")), being flexible about where the GPUs are laid out can help your jobs get scheduled faster!
+
+*Suggestion*
+
+- Go from this: `sbatch --nodes=2 --ntasks-per-node=4 --gpus-per-task=1 job.sh`
+  - Asks for two full nodes with 4 GPUs each
+  - Can take a long time to schedule
+
+- To this: `sbatch `*`--nodes=1-8 --ntasks=8 --switches=1`*` --gpus-per-task=1 job.sh`
+  - Asks for 8 tasks with 1 GPU each, spread across 1 to 8 nodes, but preferably on a single switch
+  - Performance hit is minimized when using `--switches=1`. (Recall: #ref(<switches>, supplement: "switches"))
+
+#linebreak()
+
+*Recommendations*
+- Be as flexible as possible, and use `sbatch --switches=1@3600`
+- Monitor the throughput degradation, find sweet-spot.
 
 
-== Profiling with TensorBoard + Torch Profiler
+== Checkpointing is a must! <checkpointing>
 
-Basic setup:
+Proper checkpointing is *crucial*!
+- Enables running longer jobs on clusters with preemption (e.g. the Mila cluster)
+- Enables breaking up long jobs into smaller chunks for quicker scheduling (#ref(<job_chunking>))
+- Makes jobs resilient to failures (e.g. hardware failure, software bugs, etc.)
 
-```python
-import torch
-from torch.profiler import profile, tensorboard_trace_handler, schedule
+- *Tip*: Consider using #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [Distributed Checkpointing]) when working with large models and multi-GPU jobs.
+  - (More info on this in the #ref(<efficient-checkpointing>) section later)
+  - Also see the TorchTitan talk here at Upper Bound 2026!
+  - Using "Async" mode enables more overlap between checkpointing and training
 
-with profile(
-    schedule=schedule(wait=1, warmup=1, active=5),
-    on_trace_ready=tensorboard_trace_handler("./log/profiler", worker_name=f"rank_{RANK}"),
-    record_shapes=True,
-    with_modules=True,
-    profile_memory=True,
-    with_flops=True,
-) as prof:
-    for batch in dataloader:
-        train_step(batch)
-        prof.step()   # <-- must call this every step
+
+== Code Checkpointing <code_checkpointing>
+
+/ *problem*:
+  1. Submit job A with sbatch
+  2. Modify the Python scripts
+  3. Submit job B with sbatch
+  4. Job A starts running with the *modified* code (BAD!)
+  5. Job B starts running with the modified code
+  6. Results are weird???
+
+*Solution*:
+1. `safe_sbatch`: Prevents the job from being submitted if there are uncommitted changes.
+2. Job script uses the code at the commit when the job was submitted ("code checkpointing")
+
+#pagebreak()
+
+Using Slurm + Git + #ref(<uv>) enables easy code checkpointing:
+
+safe_sbatch:
+```bash
+#!/bin/bash
+# safe_sbatch wrapper
+if [ -n "`git status --porcelain`" ]; then
+    echo "Your working directory is dirty! "
+    echo "Please add and commit changes before submitting a job."
+    exit 1
+fi
+export GIT_COMMIT=`git rev-parse HEAD`
+exec sbatch "$@"
+```
+
+```console
+safe_sbatch --gpus=1 --time=3-00:00:00 job.sh
 ```
 
 #pagebreak()
 
-```bash
-uvx --with=torch-tb-profiler tensorboard --logdir=./log/profiler
+Job script creates a copy of the code at the _exact_ commit that was used to submit the job, in a temporary directory (`$SLURM_TMPDIR`), and runs the code from there.
+
+- Virtual environment is recreated in `/tmp` by #ref(<uv>) from the cache (also works in offline mode).
+// - Commands are run in the cloned project
+
+/ *Job.sh*: ```bash
+srun --ntasks-per-node=1 --ntasks=$SLURM_JOB_NUM_NODES bash -e <<END
+    cd $SLURM_TMPDIR
+    git clone $HOME/my_project
+    git -C $SLURM_TMPDIR/my_project checkout --detach $GIT_COMMIT
+    uv sync --directory $SLURM_TMPDIR/my_project
+END
+srun uv run --directory $SLURM_TMPDIR/my_project "$@"
 ```
-
-Opens an interactive view in the browser with:
-- GPU utilization timeline (spot idle gaps instantly)
-- Kernel-level breakdown (which ops dominate)
-- Memory usage over time
-- Operator-level stack traces
-
-VsCode automatically forwards the port so the profiler UI is available on localhost:6006 (for example with #ref(<mila-code>)).
-
-
-#pagebreak()
-
-/ DEMO :
-
-  Interactive demo (`mila code` + Debugging with VsCode + Profiling with TensorBoard + Torch Profiler)
 
 = Tips and Tricks to Write Better ML Code
 
@@ -854,7 +763,6 @@ run = wandb.init(
 
 
 
-
 = Testing for ML code
 
 == Reproducibility testing <tensor-regression>
@@ -959,6 +867,58 @@ def test_custom_op_forward_backward(tensor_regression, batch_size: int):
     - More trouble, more "secure".
 
 
+= Debugging
+
+== Debugging Multi-GPU Jobs
+
+(PyTorch)
+Easiest: VSCode Debugger + `torchrun`:
+
+#set text(size: 9pt)
+
+```json
+{
+  "configurations": [
+    {
+      // Loosely based on https://medium.com/@franoisponchon/pytorch-ddp-debugging-in-vscode-4fb162eba07e
+      "name": "Debug job with torchrun (Single-node)",
+      "type": "debugpy",
+      "request": "launch",
+      // we launch a module...
+      "module": "torch.distributed.run",
+      // with args...
+      "args": "--nproc_per_node=${input:NumGPUs} ${file} ${command:pickArgs}",
+      "console": "integratedTerminal",
+      "justMyCode": false
+    }
+  ]
+}
+```
+
+#set text(size: 11pt)
+
+== Debugging Multi-Node Jobs with VSCode
+
+Launch `debugpy` on each task with a unique port, then attach VSCode to each process:
+
+```bash
+# job.sh — each task listens on a different port (5678, 5679, …)
+srun python -m debugpy --listen 0.0.0.0:$((5678 + SLURM_PROCID)) \
+    --wait-for-client main.py
+```
+
+```json
+// .vscode/launch.json
+{ "configurations": [
+    { "type": "debugpy", "request": "attach", "name": "Attach debugger to running task",
+      "connect": { "host": "${input:NodeHostname}", "port": "${input:DebugpyPort" } },
+  ],
+}
+```
+
+See: https://github.com/lebrice/mila-docs/blob/8919d6a352e7c6f3ec0c99441571400848ce8ae5/docs/examples/advanced/imagenet/.vscode/launch.json for the full VsCode launch configuration.
+
+
 = Performance Optimization
 
 == Understanding Hardware is Critical!
@@ -1037,7 +997,7 @@ data_transfer_stream = torch.cuda.Stream()
 
 for batch in dataloader:
     # Use cuda streams to overlap data transfer and training step
-    with torch.cuda.stream(data_transfer_stream):
+    with data_transfer_stream:
         batch = batch.to(device, non_blocking=True)
     # Training step on the main stream
     trainin_step(batch)
@@ -1159,6 +1119,48 @@ Also: #link("https://github.com/google/torchax", "torchax") (Different approach,
 
 
 
+
+== Profiling with TensorBoard + Torch Profiler
+
+Basic setup:
+
+```python
+import torch
+from torch.profiler import profile, tensorboard_trace_handler, schedule
+
+with profile(
+    schedule=schedule(wait=1, warmup=1, active=5),
+    on_trace_ready=tensorboard_trace_handler("./log/profiler", worker_name=f"rank_{RANK}"),
+    record_shapes=True,
+    with_modules=True,
+    profile_memory=True,
+    with_flops=True,
+) as prof:
+    for batch in dataloader:
+        train_step(batch)
+        prof.step()   # <-- must call this every step
+```
+
+#pagebreak()
+
+```bash
+uvx --with=torch-tb-profiler tensorboard --logdir=./log/profiler
+```
+
+Opens an interactive view in the browser with:
+- GPU utilization timeline (spot idle gaps instantly)
+- Kernel-level breakdown (which ops dominate)
+- Memory usage over time
+- Operator-level stack traces
+
+VsCode automatically forwards the port so the profiler UI is available on localhost:6006 (for example with #ref(<mila-code>)).
+
+
+#pagebreak()
+
+/ DEMO :
+
+  Interactive demo (`mila code` + Debugging with VsCode + Profiling with TensorBoard + Torch Profiler)
 
 == Efficient Checkpointing <efficient-checkpointing>
 
