@@ -144,10 +144,10 @@ What this talk is *not* about:
   - Hyper-Parameter Sweeps, or Coordinator / Worker setups for distributed training, etc.
 
 
-// - Slurm can even allocate different resources to different tasks within the same job!
-    // ```bash
-    // srun -n1 -c8 --mem-per-cpu=2gb server : -n16 --mem-per-cpu=1gb client
-    // ```
+- (very niche): Slurm can even allocate different resources to different tasks within the same job!
+    ```bash
+    srun -n1 -c8 --mem-per-cpu=2gb server : -n16 --mem-per-cpu=1gb client
+    ```
 
 
 
@@ -155,7 +155,7 @@ What this talk is *not* about:
 == Example: Easy Job Packing with `srun`
 
 - `srun --ntasks-per-gpu=2 uv run python main.py`
-  - Easily run multiple seeds with something like `seed=os.environ["SLURM_PROCID"]` in the python code!
+  - Easily run multiple seeds with something like `seed=int(os.environ["SLURM_PROCID"])` in python!
 
 What about when we want very different commands for each task?
 
@@ -163,10 +163,10 @@ What about when we want very different commands for each task?
 
   ```text
   # task_commands.txt
-  0 python train.py --lr=0.01
-  1 python train.py --lr=0.001
-  2 python train.py --lr=0.0001
-  3 python train.py --lr=0.00001
+  0 python train.py --lr=0.01  --batch-size=128
+  1 python train.py --lr=0.001 --batch-size=128
+  2 python train.py --lr=0.01  --batch-size=256
+  3 python train.py --lr=0.001 --batch-size=256
   ```
   ```bash
   srun --ntasks=4 --ntasks-per-gpu=4 --multi-prog task_commands.txt
@@ -210,7 +210,7 @@ What about when we want very different commands for each task?
 
 *problem*: Submitting a lot of jobs, but some of them fail (e.g. bug in the code, cluster instability, etc.) --> Waste of resources and time!
 
-(This pairs nicely with the #ref(<job_submission>) setup)
+This pairs nicely with the #ref(<job_submission>) setup from the previous slide:
 
 ```bash
 # Hyper-parameter sweep
@@ -227,7 +227,7 @@ sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c
 == Job Chunking: Get scheduled faster <job_chunking>
 
 
-Assuming your job script does #ref(<checkpointing>) correctly, you can break up a long job into smaller chunks, which can get scheduled faster and reduce the time needed to get your results!
+Assuming your job script does #ref(<checkpointing>, supplement:"checkpointing") correctly, you can break up a long job into smaller chunks, which can get scheduled faster and reduce the time needed to get your results!
 
 ```bash
 #!/bin/bash
@@ -264,11 +264,12 @@ On clusters that don't enforce full-node allocations (See #ref(<clusters>, suppl
 == Checkpointing is a must! <checkpointing>
 
 Proper checkpointing is *crucial*!
-- Support for clusters with preemption
-- Enables breaking up long jobs into smaller chunks (#ref(<job_chunking>))
+- Enables running longer jobs on clusters with preemption (e.g. the Mila cluster)
+- Enables breaking up long jobs into smaller chunks for quicker scheduling (#ref(<job_chunking>))
 - Makes jobs resilient to failures (e.g. hardware failure, software bugs, etc.)
 
-- Consider using #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [Distributed Checkpointing]) when working with large models and multi-GPU jobs.
+- *Tip*: Consider using #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [Distributed Checkpointing]) when working with large models and multi-GPU jobs.
+  - (More info on this in the #ref(<efficient-checkpointing>) section later)
   - Also see the TorchTitan talk here at Upper Bound 2026!
   - Using "Async" mode enables more overlap between checkpointing and training
 
@@ -335,13 +336,13 @@ Awesome commands:
 - `uv init`
 - `uv add/remove <package>`
 - `uv sync`
-- `uv run <command>`
+- `uv run <command>` : Does `uv sync`, activates venv, and runs command.
 
 Not recommended: `uv pip` / `uv venv`: (pip compatibility, no dep. tracking)
 
 Useful global flags / environment variables:
 - `--offline` : Useful on clusters with no internet access on Compute Nodes (see #ref(<uv_on_drac>, supplement: "UV + DRAC"))
-- `--directory` Useful with a _Code Checkpointing_ setup in `$SLURM_TMPDIR` (see #ref(<code_checkpointing>))
+- `--directory` Useful with a #ref(<code_checkpointing>) setup (project+venv setup in `$SLURM_TMPDIR`)
 
 == uv + PyTorch / CUDA dependencies
 
@@ -902,7 +903,7 @@ def test_train_step_is_reproducible(seed: int, tensor_regression):
 ```
 #set text(size: 11pt)
 
-== Case Study: Test-Driven Debugging of PyTorch Code
+== Example: Test-Driven Debugging of PyTorch Code
 
 A researcher is having issues with a custom PyTorch op with hand-written forward + backward passes.
 It works correctly for small inputs, but explodes and CUDA OOMs for larger inputs.
@@ -1159,7 +1160,7 @@ Also: #link("https://github.com/google/torchax", "torchax") (Different approach,
 
 
 
-== Efficient Checkpointing
+== Efficient Checkpointing <efficient-checkpointing>
 
 For large multi-GPU models, use `torch.distributed.checkpoint` — each rank saves/loads its own shard *in parallel*:
 
