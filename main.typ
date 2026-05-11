@@ -93,6 +93,8 @@ What this talk is *not* about:
 
 - Mila cluster has preemptible long jobs and limited non-preemptible short jobs.
 
+= Slurm tips and tricks
+
 == Useful Slurm Commands
 
 - *`sbatch`* `--ntasks=4 --gpus=4 --cpus-per-task=16 --mem=32G --time=03:00:00 job.sh`
@@ -107,9 +109,46 @@ What this talk is *not* about:
 
 == `srun` is all you need!
 
-/todo: Slide showing how `srun` is amazing.
+`srun` is _*the*_ way to run commands in a SLURM job.
 
-= Slurm tips and tricks
+- `srun` takes care of launching the command on the right nodes, with the right environment variables,
+- Slurm partitions the resources (CPUs, GPUs, and memory) properly across tasks!
+
+- `srun` can be used to spawn different commands for each task (with `--multi-prog`)
+  - Hyper-Parameter Sweeps, or Coordinator / Worker setups for distributed training, etc.
+
+
+// - Slurm can even allocate different resources to different tasks within the same job!
+    // ```bash
+    // srun -n1 -c8 --mem-per-cpu=2gb server : -n16 --mem-per-cpu=1gb client
+    // ```
+
+
+
+
+== Example: Easy Job Packing with `srun`
+
+- `srun --ntasks-per-gpu=2 uv run python main.py`
+  - Easily run multiple seeds with something like `seed=os.environ["SLURM_PROCID"]` in the python code!
+
+What about when we want very different commands for each task?
+
+-> `srun --multi-prog` to the rescue!
+
+  ```text
+  # task_commands.txt
+  0 python train.py --lr=0.01
+  1 python train.py --lr=0.001
+  2 python train.py --lr=0.0001
+  3 python train.py --lr=0.00001
+  ```
+  ```bash
+  srun --ntasks=4 --ntasks-per-gpu=4 --multi-prog task_commands.txt
+  ```
+
+(See #link("https://slurm.schedmd.com/srun.html#OPT_multi-prog", [`srun` documentation]))
+
+
 
 == Easy job submission <job_submission>
 
@@ -143,9 +182,9 @@ What this talk is *not* about:
 
 == Use Job Dependencies to prevent waste <job_dependencies>
 
-*problem*: Submitting a lot of jobs, but
-Ties in nicely with the #ref(<job_submission>) setup!
+*problem*: Submitting a lot of jobs, but some of them fail (e.g. bug in the code, cluster instability, etc.) --> Waste of resources and time!
 
+(This pairs nicely with the #ref(<job_submission>) setup)
 
 ```bash
 # Hyper-parameter sweep
@@ -153,8 +192,9 @@ jobid_a=$(sbatch --parsable job.sh --lr=0.01)
 jobid_b=$(sbatch --parsable job.sh --lr=0.02)
 jobid_c=$(sbatch --parsable job.sh --lr=0.03)
 
-# Train once with best hyper-parameters
-sbatch --dependency=afterok:$jobid_a,$jobid_b,$jobid_c job.sh --lr=best
+# Train once with best hyper-parameters, *only if all runs succeed*!
+sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c \
+        job.sh --lr=best
 ```
 
 
@@ -169,7 +209,8 @@ Assuming your job script does #ref(<checkpointing>) correctly, you can break up 
 num_chunks=5
 jobid=$(sbatch --parsable --time=03:00:00 job.sh "$@")
 for i in $(seq 2 $num_chunks); do
-    jobid=$(sbatch --parsable --dependency=afterok:$jobid --time=03:00:00 job.sh "$@")
+    jobid=$(sbatch --parsable --dependency=afterok:$jobid --kill-on-invalid-dep=yes
+            --time=03:00:00 job.sh "$@")
 done
 ```
 
@@ -194,12 +235,18 @@ On clusters that don't enforce full-node allocations (See #ref(<clusters>, suppl
 - Monitor the throughput degradation, find sweet-spot.
 
 
-== Checkpointing <checkpointing>
+== Checkpointing is a must! <checkpointing>
 
 Proper checkpointing is *crucial*!
-- Support for clusters with preemption (only Mila cluster)
+- Support for clusters with preemption
 - Enables breaking up long jobs into smaller chunks (#ref(<job_chunking>))
 - Makes jobs resilient to failures (e.g. hardware failure, software bugs, etc.)
+
+Checkpoint become critical for large-scale jobs.
+
+- Consider using #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [Distributed Checkpointing]) when working with large models and multi-GPU/multi-Node jobs.
+  - Also see the TorchTitan talk here at Upper Bound 2026!
+
 
 == Code Checkpointing <code_checkpointing>
 
@@ -418,15 +465,6 @@ Flash-Attention is notoriously difficult to deal with:
   ```
 
 
-
-
-= Interactive Development and Debugging
-
-== milatools <milatools>
-
-Small Python package developed by the IDT team at Mila.
-
-Install with `uv tool install milatools`
 
 
 = Interactive Development and Debugging
@@ -678,6 +716,10 @@ class SwiGLU(nn.Module):
 
 / TODO: Slide on useful tips and tricks on using Weights and Biases.
 
+
+
+
+
 = Testing for ML code
 
 == Reproducibility testing <tensor-regression>
@@ -830,20 +872,24 @@ for batch in dataloader:
 
 == Using the filesystem efficiently
 
-TODO
+/ TODO: Slide on how to best leverage the filesystems?
+
+- `$SLURM_TMPDIR`: Fast local storage (perfect for lost of small reads/writes)
+- `$SCRATCH`: Slower, but shared between nodes, good for checkpoints, logs, etc.
+
 
 
 == RL With Simulation on CPU
 
-- Real Examples of sub-optimal workflows → diagnostic → fix → Outcome
+// - Real Examples of sub-optimal workflows → diagnostic → fix → Outcome
 / TODO:
   Diagram showing the workflow of an RL experiment using simulation on the CPU. Simulation is very slow, and increasing the number of workers makes this slower!
 
+  Solution: OMP_NUM_THREADS=1 for the simulation workers, to prevent oversubscription of CPU cores.
 
 
-== Job Packing
+// == Job Packing
 
-TODO
 
 == Tip: Mixing PyTorch and Jax
 
@@ -871,9 +917,6 @@ Also: #link("https://github.com/google/torchax", "torchax") (Different approach,
 
 
 
-// = Case studies
-
-
 
 == Efficient Checkpointing
 
@@ -898,9 +941,11 @@ Cluv: *Cl* uster + *uv*: Simple CLI tool to dispatch jobs and synchronize uv pro
 
 == Research Template Repository <research_template>
 
-TODO
+Research Template Repository: https://mila-iqia.github.io/ResearchTemplate/
+
 
 == AutoResearch
+
 
 TODO
 
