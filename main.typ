@@ -30,7 +30,7 @@
 == About this presentation
 
 - Tips, tricks, and best practices from Mila's IDT team
-- No single narrative — each section stands alone
+- Organized to roughly follow a _typical_ research workflow
 - Sit back, relax, grab some useful nuggets!
 
 #quote([
@@ -534,7 +534,7 @@ END
 srun uv run --directory $SLURM_TMPDIR/my_project "$@"
 ```
 
-= Tips and Tricks to Write Better ML Code
+= Writing Better ML Code
 
 == Einops <einops>
 
@@ -832,7 +832,7 @@ def test_custom_op_forward_backward(tensor_regression, batch_size: int):
   - SSH multiplexing (reuse an authenticated session — hacky but works), or robot SSH keys restricted to `sbatch runner_job.sh`
 
 
-= Debugging
+= Debugging & Profiling
 
 == Debugging Multi-GPU Jobs
 
@@ -881,9 +881,6 @@ srun python -m debugpy --listen 0.0.0.0:$((5678 + SLURM_PROCID)) \
 ```
 
 Full VSCode launch config: https://github.com/lebrice/mila-docs/blob/8919d6a352e7c6f3ec0c99441571400848ce8ae5/docs/examples/advanced/imagenet/.vscode/launch.json
-
-
-= Profiling
 
 == Profiling with TensorBoard + Torch Profiler
 
@@ -985,18 +982,18 @@ for batch in tqdm.tqdm(dataloader, unit_scale=dataloader.batch_size, unit="sampl
 #table(
   columns: (auto, auto, auto),
   [*`training=True`*], [*`training=False`*], [*conclusion*],
-  [100 samples/s], [500 samples/s], [Dataloader _*is not*_ the bottleneck!],
+  [100 samples/s], [500 samples/s], [Dataloader is _*not*_ the bottleneck!],
   [100 samples/s], [\~100 samples/s], [Dataloader _*is*_ the bottleneck!],
 )
 
 #pagebreak()
 
-Option 2: Using a Profiler
+*Symptom*: On Wandb or using a Profiler, low GPU utilization despite large model and big batches.
 
-*Symptom*: low GPU utilization despite large model and big batches.
+
+- Simplified Profiler timeline — `num_workers=0` (GPU starved):
 
 #set text(size: 8pt)
-*Simplified Profiler timeline — `num_workers=0` (GPU starved):*
 #grid(
   columns: (3.5em, 2fr, 1fr, 2fr, 1fr, 2fr, 1fr),
   rows: (1.3em, 1.3em),
@@ -1019,11 +1016,9 @@ Option 2: Using a Profiler
 )
 #set text(size: 11pt)
 
-GPU blocks every batch — wasted compute!
 
-
+- Simplified Profiler timeline — `num_workers=4, pin_memory=True` (overlapped):
 #set text(size: 8pt)
-*Simplified Profiler timeline — `num_workers=4, pin_memory=True` (overlapped):*
 #grid(
   columns: (3.5em, 1fr, 1fr, 1fr, 1fr, 1fr, 1fr),
   rows: (1.3em, 1.3em),
@@ -1046,30 +1041,72 @@ GPU blocks every batch — wasted compute!
 )
 #set text(size: 11pt)
 
+
+// - Simplified Profiler timeline — `num_workers=4, pin_memory=True, non_blocking=True` (overlapped + async):
+// // NOTE: This is quite tricky to get right. Probably best to reference this guide above.
+// #set text(size: 8pt)
+// #grid(
+//   columns: (8em, 1fr, 1fr, 1fr, 1fr, 1fr, 1fr),
+//   rows: (1.3em, 1.3em),
+//   gutter: 2pt,
+//   align: horizon + center,
+//   [*CUDA Stream 0*],
+//     rect(fill: red.lighten(55%), width: 100%, height: 1.3em, inset: 2pt)[*idle*],
+//     rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 1],
+//     rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 2],
+//     rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 3],
+//     rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 4],
+//     rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 5],
+//   [*CUDA Stream 1*],
+//     rect(fill: red.lighten(55%), width: 100%, height: 1.3em, inset: 2pt)[*idle*],
+//     rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 1],
+//     rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 2],
+//     rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 3],
+//     rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 4],
+//     rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 5],
+//   [*CPU*],
+//     rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load batch 1],
+//     rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load batch 2],
+//     rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load batch 3],
+//     rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load batch 4],
+//     rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load batch 5],
+//     rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load batch 6],
+// )
+// #set text(size: 11pt)
+
+
 GPU stays busy — next batch always ready.
 
 
-#pagebreak()
+// #pagebreak()
 
-*Solution*
+== Tip: Use CUDA Streams + non_blocking=True!
 
+Enables maximal overlap without forcing synchronization at each step!
+
+#set text(size: 9pt)
 ```python
 dataloader = DataLoader(
     dataset,
     batch_size=64,
-    num_workers=4,  # <-- Too low --> GPU waits for data
-    pin_memory=True, # <-- Useful for GPU training
-    prefetch_factor=2, # <-- Useful for GPU training
+    num_workers=len(os.sched_getaffinity(0)), # as many workers as allocated CPUs
+    pin_memory=True,
+    # prefetch_factor=2, # Helps if there is variance in load times.
 )
 data_transfer_stream = torch.cuda.Stream()
 
 for batch in dataloader:
-    # Use cuda streams to overlap data transfer and training step
+    # Use cuda streams to overlap data transfer and training step without a sync
     with data_transfer_stream:
         batch = batch.to(device, non_blocking=True)
     # Training step on the main stream
     training_step(batch)
 ```
+
+#set text(size: 11pt)
+
+Excellent guide (*must read*!): https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html
+
 
 #pagebreak()
 
@@ -1089,15 +1126,15 @@ for batch in dataloader:
 
 #pagebreak()
 
-*Pattern — copy in at start, results out at end*:
+*Pattern — Extract directly to `$SLURM_TMPDIR`, copy results out at end*:
 ```bash
-cp -r $SCRATCH/datasets/my_dataset $SLURM_TMPDIR/
+srun --ntasks-per-node=1 --ntasks=$SLURM_JOB_NUM_NODES \
+  tar -xf $SCRATCH/my_dataset.tar -C $SLURM_TMPDIR/
 
-python train.py \
-    --data-dir=$SLURM_TMPDIR/my_dataset \
-    --checkpoint-dir=$SCRATCH/checkpoints/
+srun uv run python train.py --data-dir=$SLURM_TMPDIR "$@"
 
-cp -r $SLURM_TMPDIR/final_results $SCRATCH/
+mkdir -p $SCRATCH/$SLURM_JOB_ID
+srun --ntasks=1 cp -r $SLURM_TMPDIR/final_results $SCRATCH/$SLURM_JOB_ID
 ```
 
 *Avoid millions of small files* on the shared FS — metadata latency kills throughput.
@@ -1119,7 +1156,7 @@ Prefer: WebDataset (`.tar` shards), HDF5, or SQLite.
     edge((0, 0), (2, 1), "->", label: [experience]),
     edge((0, 1), (2, 1), "->"),
     edge((0, 2), (2, 1), "->"),
-    edge((2, 1), (4, 1), "<->", label: [batch / update]),
+    edge((2, 1), (4, 1), "->", label: [batch]),
     edge((4, 1), (0, 0), "->", label: [new weights], bend: -35deg),
     edge((4, 1), (0, 1), "..>", label: [], bend: -35deg),
     edge((4, 1), (0, 2), "..>", label: [], bend: -35deg),
@@ -1191,12 +1228,15 @@ See: #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_re
 
 == cluv <cluv>
 
-*Cl* uster + *uv*: CLI to dispatch jobs and sync uv projects across Slurm clusters.
+From *Cl*~uster + *UV*: CLI to dispatch jobs and sync uv projects across Slurm clusters.
 
 - Setup: `cluv login`, `cluv sync`, `cluv status`
 - Run: `cluv run <cluster> <command>`
-- Submit: `cluv submit <cluster> <job_script> [args]` (use `first` instead of `<cluster>` to dispatch to the first available)
+- Submit: `cluv submit <cluster> <job_script> [args]`
+  - use `first` instead of `<cluster>` to dispatch to all clustes and keep first running job
 
+
+Learn more at https://github.com/mila-iqia/cluv
 
 == Research Template Repository <research_template>
 
