@@ -467,9 +467,7 @@ On clusters without enforced full-node allocations (see #ref(<clusters>, supplem
 
 #linebreak()
 
-*Recommendations*
-- Use `sbatch --switches=1@3600`
-- Monitor throughput → find sweet-spot
+*Recommendations*: use `sbatch --switches=1@3600` and monitor throughput to find the sweet-spot
 
 
 == Checkpointing is a must! <checkpointing>
@@ -584,9 +582,7 @@ Also useful:
 - `einops.einsum`
 - Layers: `Rearrange`, `Reduce`, `EinMix` (drop in `nn.Sequential`)
 
-Docs: https://einops.rocks/
-
-Pair with #ref(<jaxtyping>) for shape-checked tensors!
+Docs: https://einops.rocks/. Pair with #ref(<jaxtyping>) for shape-checked tensors!
 
 == Jaxtyping <jaxtyping>
 
@@ -758,8 +754,7 @@ def test_initialization_is_reproducible(seed: int, tensor_regression):
 
 Based on #link("https://github.com/ESSS/pytest-regressions", "pytest-regressions")
 - Saves tensor stats (shape, dtype, min/max/mean) in a git-committed `.yaml`
-- Stats differ → test fails
-- File missing → fails (generate with `--gen-missing` / `--regen-all`)
+- Test fails if stats differ or the file is missing (generate with `--gen-missing` / `--regen-all`)
 
 
 #pagebreak()
@@ -818,11 +813,9 @@ def test_custom_op_forward_backward(tensor_regression, batch_size: int):
 
 // (Possibly unique, never seen this done before).
 
-1. Have a self-hosted GitHub Runner on a machine with SSH access to a Cluster
-2. PR workflow is reviewed and approved by the repo maintainers
-3. Self-hosted runner submits a job on the cluster with `ssh <cluster> sbatch`
-4. Job starts an *ephemeral self-hosted GitHub Runner* on a compute node (with GPUs)
-5. GitHub runner on compute node runs tests, results appear on GitHub!
+1. Self-hosted GitHub Runner on a machine with SSH access to the cluster
+2. PR workflow is approved by maintainers → runner submits via `ssh <cluster> sbatch`
+3. Job spawns an *ephemeral GitHub Runner* on a GPU compute node → runs tests → results appear on GitHub!
 
 #align(center)[
   #image("github_ci_example.png", width: 90%)
@@ -833,12 +826,10 @@ def test_custom_op_forward_backward(tensor_regression, batch_size: int):
 #pagebreak()
 
 1. Isn't this a security risk?
-  - Somewhat. Maintainers must approve PR workflows
-  - CI runner acts as the user, no extra permissions
+  - Somewhat — but maintainers must approve PR workflows, and the runner acts as the user with no extra permissions
 
 2. MFA?
-  - SSH multiplexing (reuse authenticated session) — hacky but works
-  - Or robot SSH keys restricted to `sbatch runner_job.sh`
+  - SSH multiplexing (reuse an authenticated session — hacky but works), or robot SSH keys restricted to `sbatch runner_job.sh`
 
 
 = Debugging
@@ -1150,9 +1141,8 @@ Large multi-GPU models → `torch.distributed.checkpoint`. Each rank saves/loads
 // #set text(size: 11pt)
 
 Advantages over rank-0-only:
-- *Much faster* — I/O parallelized across ranks
-- *Reshard on load* — 8 → 16 GPUs, no re-save
-- *FSDP-aware* — handles sharded optimizer states
+- *Much faster* — I/O parallelized across all ranks
+- *Reshard-on-load* (8 → 16 GPUs, no re-save) — and *FSDP-aware* (handles sharded optimizer states)
 
 See: #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [PyTorch Distributed Checkpointing tutorial]) + the *TorchTitan* talk at Upper Bound 2026!
 
@@ -1163,12 +1153,9 @@ See: #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_re
 
 *Cl* uster + *uv*: CLI to dispatch jobs and sync uv projects across Slurm clusters.
 
-- `cluv login`
-- `cluv sync`
-- `cluv status`
-- `cluv run <cluster> <command>`
-- `cluv submit <cluster> <job_script> [args]`
-- `cluv submit   first   <job_script> [args]`
+- Setup: `cluv login`, `cluv sync`, `cluv status`
+- Run: `cluv run <cluster> <command>`
+- Submit: `cluv submit <cluster> <job_script> [args]` (use `first` instead of `<cluster>` to dispatch to the first available)
 
 
 == Research Template Repository <research_template>
@@ -1197,10 +1184,9 @@ Research Template Repository: https://mila-iqia.github.io/ResearchTemplate/
 ]
 
 1. *Hypothesize*: LLM proposes experiment (architecture, hyperparams, code)
-2. *Submit*: agent calls `sbatch`
-3. *Monitor*: polls for completion, reads logs/metrics
-4. *Analyze*: LLM interprets, refines direction
-5. *Repeat* → progressively targeted experiments
+2. *Submit + Monitor*: agent `sbatch`es the job, then polls for completion and reads logs/metrics
+3. *Analyze*: LLM interprets results, refines direction
+4. *Repeat* → progressively targeted experiments
 
 *Why Slurm?* Clean, sandboxed interface — agent inherits resource management and isolation for free.
 
