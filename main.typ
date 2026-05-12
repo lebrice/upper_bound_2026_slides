@@ -365,7 +365,7 @@ TORCH_CUDA_ARCH_LIST = "9.0"
 
 
 
-== Example: Easy Job Packing with `srun`
+== Example: Easy Job Packing with `srun` <job-packing>
 
 - `srun --ntasks-per-gpu=2 uv run python main.py`
   - Multi-seed: use `seed=int(os.environ["SLURM_PROCID"])`
@@ -883,67 +883,171 @@ srun python -m debugpy --listen 0.0.0.0:$((5678 + SLURM_PROCID)) \
 Full VSCode launch config: https://github.com/lebrice/mila-docs/blob/8919d6a352e7c6f3ec0c99441571400848ce8ae5/docs/examples/advanced/imagenet/.vscode/launch.json
 
 
-= Performance Optimization
+= Profiling
 
-== Understanding Hardware is Critical!
+== Profiling with TensorBoard + Torch Profiler
 
-// Bandwidth hierarchy across a typical GPU compute cluster node and between nodes.
+Basic setup:
+
+```python
+import torch
+from torch.profiler import profile, tensorboard_trace_handler, schedule
+
+with profile(
+    schedule=schedule(wait=1, warmup=1, active=5),
+    on_trace_ready=tensorboard_trace_handler("./log/profiler", worker_name=f"rank_{RANK}"),
+    record_shapes=True,
+    with_modules=True,
+    profile_memory=True,
+    with_flops=True,
+) as prof:
+    for batch in dataloader:
+        train_step(batch)
+        prof.step()   # <-- must call this every step
+```
+
+#pagebreak()
+
+```bash
+uvx --with=torch-tb-profiler tensorboard --logdir=logs
+```
 #align(center)[
-  #fletcher.diagram(
-    node-stroke: 0.8pt,
-    spacing: (2.5em, 3em),
-
-    // --- Node 1 ---
-    node((0, 0), [GPU 0], fill: blue.lighten(70%)),
-    node((2, 0), [GPU 1], fill: blue.lighten(70%)),
-    edge((0, 0), (2, 0), "<->", label: [~600 GB/s (NvLink)]),
-    node((1, 1), [CPU + RAM], fill: green.lighten(70%)),
-    edge((0, 0), (1, 1), "<->", label: [~32 GB/s (PCIe)]),
-    edge((2, 0), (1, 1), "<->"),
-
-    // --- Node 2 ---
-    node((4, 0), [GPU 2], fill: blue.lighten(70%)),
-    node((6, 0), [GPU 3], fill: blue.lighten(70%)),
-    edge((4, 0), (6, 0), "<->", label: [~600 GB/s (NvLink)]),
-    node((5, 1), [CPU + RAM], fill: green.lighten(70%)),
-    edge((4, 0), (5, 1), "<->"),
-    edge((6, 0), (5, 1), "<->", label: [~32 GB/s (PCIe)]),
-
-    // --- Inter-node ---
-    edge((1, 1), (5, 1), "<->", label: [~200 GB/s (NvMesh / Infiniband)]),
-  )
+#image("tensorboard_torch_profiler.png", width: 70%)
 ]
+
+// Browser view shows:
+// - GPU utilization timeline (spot idle gaps!)
+// - Kernel-level breakdown
+// - Memory usage over time
+// - Operator-level stack traces
+
+VSCode auto-forwards the port → localhost:6006 (with #ref(<mila-code>))
+
+
+#pagebreak()
+
+/ DEMO :
+
+  Interactive demo (`mila code` + Debugging with VsCode + Profiling with TensorBoard + Torch Profiler)
+
+
+// == Understanding Hardware is Critical!
+
+// // Bandwidth hierarchy across a typical GPU compute cluster node and between nodes.
+// #align(center)[
+//   #fletcher.diagram(
+//     node-stroke: 0.8pt,
+//     spacing: (2.5em, 3em),
+
+//     // --- Node 1 ---
+//     node((0, 0), [GPU 0], fill: blue.lighten(70%)),
+//     node((2, 0), [GPU 1], fill: blue.lighten(70%)),
+//     edge((0, 0), (2, 0), "<->", label: [~600 GB/s (NvLink)]),
+//     node((1, 1), [CPU + RAM], fill: green.lighten(70%)),
+//     edge((0, 0), (1, 1), "<->", label: [~32 GB/s (PCIe)]),
+//     edge((2, 0), (1, 1), "<->"),
+
+//     // --- Node 2 ---
+//     node((4, 0), [GPU 2], fill: blue.lighten(70%)),
+//     node((6, 0), [GPU 3], fill: blue.lighten(70%)),
+//     edge((4, 0), (6, 0), "<->", label: [~600 GB/s (NvLink)]),
+//     node((5, 1), [CPU + RAM], fill: green.lighten(70%)),
+//     edge((4, 0), (5, 1), "<->"),
+//     edge((6, 0), (5, 1), "<->", label: [~32 GB/s (PCIe)]),
+
+//     // --- Inter-node ---
+//     edge((1, 1), (5, 1), "<->", label: [~200 GB/s (NvMesh / Infiniband)]),
+//   )
+// ]
 
 
 == Dataloader Bottlenecks
 
+
+*Easy to check* using a `tqdm` progress bar:
+
+// - Note the throughput in samples per second with/without training (e.g. add `continue` in for-loop)
+//   - Throughput is much faster without training → no bottleneck in data loading
+//   - Throughput stays roughly the same → *bottleneck in data loading / transfer*
+
+```python
+import tqdm
+for batch in tqdm.tqdm(dataloader, unit_scale=dataloader.batch_size, unit="samples"):
+    batch = batch.to(device)
+    if not training:
+        continue  # skip training entirely.
+    metrics = model.training_step(batch)
+    ...
+# will produce output like this:
+# Epoch 0: 100%|██████████| 500/500 [00:10<00:00, 50.0 samples/s]
+```
+
+#table(
+  columns: (auto, auto, auto),
+  [*`training=True`*], [*`training=False`*], [*conclusion*],
+  [100 samples/s], [500 samples/s], [Dataloader _*is not*_ the bottleneck!],
+  [100 samples/s], [\~100 samples/s], [Dataloader _*is*_ the bottleneck!],
+)
+
+#pagebreak()
+
+Option 2: Using a Profiler
+
 *Symptom*: low GPU utilization despite large model and big batches.
 
 #set text(size: 8pt)
-*Profiler timeline — `num_workers=0` (GPU starved):*
+*Simplified Profiler timeline — `num_workers=0` (GPU starved):*
 #grid(
   columns: (3.5em, 2fr, 1fr, 2fr, 1fr, 2fr, 1fr),
   rows: (1.3em, 1.3em),
   gutter: 2pt,
   align: horizon + center,
   [*GPU*],
-    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train],
     rect(fill: red.lighten(55%), width: 100%, height: 1.3em, inset: 2pt)[*idle*],
-    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 1],
     rect(fill: red.lighten(55%), width: 100%, height: 1.3em, inset: 2pt)[*idle*],
-    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 2],
     rect(fill: red.lighten(55%), width: 100%, height: 1.3em, inset: 2pt)[*idle*],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 3],
   [*CPU*],
-    rect(fill: white, width: 100%, height: 1.3em)[],
-    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load],
-    rect(fill: white, width: 100%, height: 1.3em)[],
-    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load],
-    rect(fill: white, width: 100%, height: 1.3em)[],
-    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load batch 1],
+    rect(fill: red.lighten(55%), width: 100%, height: 1.3em)[idle],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load batch 2],
+    rect(fill: red.lighten(55%), width: 100%, height: 1.3em)[idle],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load batch 3],
+    rect(fill: red.lighten(55%), width: 100%, height: 1.3em)[idle],
 )
 #set text(size: 11pt)
 
 GPU blocks every batch — wasted compute!
+
+
+#set text(size: 8pt)
+*Simplified Profiler timeline — `num_workers=4, pin_memory=True` (overlapped):*
+#grid(
+  columns: (3.5em, 1fr, 1fr, 1fr, 1fr, 1fr, 1fr),
+  rows: (1.3em, 1.3em),
+  gutter: 2pt,
+  align: horizon + center,
+  [*GPU*],
+    rect(fill: red.lighten(55%), width: 100%, height: 1.3em, inset: 2pt)[*idle*],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 1],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 2],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 3],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 4],
+    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train batch 5],
+  [*CPU*],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load batch 1],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load batch 2],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load batch 3],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load batch 4],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load batch 5],
+    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[load batch 6],
+)
+#set text(size: 11pt)
+
+GPU stays busy — next batch always ready.
+
 
 #pagebreak()
 
@@ -964,36 +1068,10 @@ for batch in dataloader:
     with data_transfer_stream:
         batch = batch.to(device, non_blocking=True)
     # Training step on the main stream
-    trainin_step(batch)
+    training_step(batch)
 ```
 
 #pagebreak()
-
-#set text(size: 8pt)
-*Profiler timeline — `num_workers=4, pin_memory=True` (overlapped):*
-#grid(
-  columns: (3.5em, 1fr, 1fr, 1fr, 1fr, 1fr, 1fr),
-  rows: (1.3em, 1.3em),
-  gutter: 2pt,
-  align: horizon + center,
-  [*GPU*],
-    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train 0],
-    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train 1],
-    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train 2],
-    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train 3],
-    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train 4],
-    rect(fill: blue.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[train 5],
-  [*CPU*],
-    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[prefetch 1],
-    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[prefetch 2],
-    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[prefetch 3],
-    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[prefetch 4],
-    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[prefetch 5],
-    rect(fill: orange.lighten(50%), width: 100%, height: 1.3em, inset: 2pt)[prefetch 6],
-)
-#set text(size: 11pt)
-
-GPU stays busy — next batch always ready.
 
 
 == Using the filesystem efficiently
@@ -1042,17 +1120,21 @@ Prefer: WebDataset (`.tar` shards), HDF5, or SQLite.
     edge((0, 1), (2, 1), "->"),
     edge((0, 2), (2, 1), "->"),
     edge((2, 1), (4, 1), "<->", label: [batch / update]),
-    edge((4, 1), (0, 0), "->", label: [new weights], bend: 35deg),
-    edge((4, 1), (0, 1), "->"),
-    edge((4, 1), (0, 2), "->", bend: -35deg),
+    edge((4, 1), (0, 0), "->", label: [new weights], bend: -35deg),
+    edge((4, 1), (0, 1), "..>", label: [], bend: -35deg),
+    edge((4, 1), (0, 2), "..>", label: [], bend: -35deg),
+    // edge((4, 1), (0, 1), "->"),
+    // edge((4, 1), (0, 2), "->", bend: -35deg),
   )
 ]
 
-*Problem*: NumPy in each worker grabs all CPUs → `N × OMP_NUM_THREADS` threads on `N` cores → context-switching → more workers = *slower*
+*Problem*: NumPy and other libraries used in env worker auto-detect `num_threads = num_cpus`!
+- `N x n_cpus` threads on `n_cpus` cores → context-switching → *slower jobs*!
 
-*Fix*:
+// *Fix*:
 ```bash
-export OMP_NUM_THREADS=1
+export OMP_NUM_THREADS=1   # <-- Simple solution!
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK   # <-- Better!
 ```
 
 // == Job Packing
@@ -1083,51 +1165,9 @@ Also: #link("https://github.com/google/torchax", "torchax") (Google, different a
 
 
 
-== Profiling with TensorBoard + Torch Profiler
-
-Basic setup:
-
-```python
-import torch
-from torch.profiler import profile, tensorboard_trace_handler, schedule
-
-with profile(
-    schedule=schedule(wait=1, warmup=1, active=5),
-    on_trace_ready=tensorboard_trace_handler("./log/profiler", worker_name=f"rank_{RANK}"),
-    record_shapes=True,
-    with_modules=True,
-    profile_memory=True,
-    with_flops=True,
-) as prof:
-    for batch in dataloader:
-        train_step(batch)
-        prof.step()   # <-- must call this every step
-```
-
-#pagebreak()
-
-```bash
-uvx --with=torch-tb-profiler tensorboard --logdir=./log/profiler
-```
-
-Browser view shows:
-- GPU utilization timeline (spot idle gaps!)
-- Kernel-level breakdown
-- Memory usage over time
-- Operator-level stack traces
-
-VSCode auto-forwards the port → localhost:6006 (with #ref(<mila-code>))
-
-
-#pagebreak()
-
-/ DEMO :
-
-  Interactive demo (`mila code` + Debugging with VsCode + Profiling with TensorBoard + Torch Profiler)
-
 == Efficient Checkpointing <efficient-checkpointing>
 
-Large multi-GPU models → `torch.distributed.checkpoint`. Each rank saves/loads its shard *in parallel*:
+Large multi-GPU models → `torch.distributed.checkpoint`. Each rank saves/loads its shard *in parallel*!
 
 // #set text(size: 9pt)
 // ```python
