@@ -28,33 +28,32 @@
 )
 
 == About this presentation
-This presentation is a collection of tips, tricks, and best practices for efficient research with Slurm compute clusters, based on the experience of Mila's IDT team and of many researchers at Mila.
 
-There isn't really a narrative thread that connects the different sections.
+- Tips, tricks, and best practices from Mila's IDT team
+- No single narrative — each section stands alone
+- Sit back, relax, grab some useful nuggets!
 
-Sit back, relax, let information rain down on you, and hopefully you'll find some useful nuggets to take back to your research!
 #quote([
-  The goal of this presentation is to give you useful tips and tricks to increase your productivity and reduce friction in your research workflow with Slurm clusters.
+  Increase your productivity and reduce friction in your research workflow with Slurm clusters.
 ])
-The code for this presentation is available at #link("https://github.com/lebrice/upper_bound_2026_slides").
+
+Slides + code: #link("https://github.com/lebrice/upper_bound_2026_slides")
 
 == Intended Audience
 
-This presentation is aimed at researchers in AI/ML who have access to Slurm compute clusters.
+*Audience*: AI/ML researchers with Slurm cluster access (also relevant for cluster staff)
 
-It can also be useful for the staff of companies that manage or use compute clusters for research.
+What this talk *is* about:
 
-What this talk is about:
-
-- How to use Slurm clusters efficiently
-- How to reduce friction in your research workflow
-- How do facilitate performance optimization
+- Using Slurm clusters efficiently
+- Reducing friction in your research workflow
+- Setting up for easy performance optimization
 
 
 What this talk is *not* about:
 
-- In-depth, low-level optimization of ML code
-- Theoretical aspects of parallelism, distributed training, etc.
+- Low-level ML code optimization
+- Theory of parallelism / distributed training
 
 
 = Introduction
@@ -91,12 +90,12 @@ What this talk is *not* about:
 
 #pagebreak()
 
-*Network Switches*: nodes are grouped under switches in a hierarchy. Jobs spread across many switches pay extra latency. `sbatch --switches=1` tells Slurm to prefer nodes under a single switch.
+*Network Switches*: hierarchy — jobs across many switches pay extra latency. Use `sbatch --switches=1` to prefer one switch.
 
-*Distributed Filesystem implications*:
-- Data is _striped_ across storage servers → high throughput for large sequential reads
-- High _metadata latency_ for small files (each `open()` is a network round-trip)
-- Avoid millions of tiny files — prefer `.tar` shards, HDF5, WebDataset, or copy to `$SLURM_TMPDIR`
+*Distributed Filesystem*:
+- _Striped_ data → high throughput for large sequential reads
+- High _metadata latency_ on small files (each `open()` = network round-trip)
+- Avoid millions of tiny files — prefer `.tar` shards, HDF5, WebDataset, or `$SLURM_TMPDIR`
 
 
 
@@ -123,39 +122,37 @@ What this talk is *not* about:
 
 == milatools <milatools>
 
-Small Python package developed by the IDT team at Mila.
+Small Python package by Mila's IDT team.
 
-Install with `uv tool install milatools`
+Install: `uv tool install milatools`
 
 - `mila init`:
-  - Sets up SSH configuration.
-  - Checks access to clusters
-  - Gives instructions for setting up access to Mila/DRAC clusters.
+  - SSH config setup
+  - Cluster access checks
+  - Instructions for Mila/DRAC access
 
 - `mila code --cluster=<cluster> [project_path] [--salloc resources]`
 
-  Works with *_any_* Slurm cluster accessible with SSH
-  1. Requests an interactive job with `salloc <resources>`;
-  2. Waits for job to start;
-  3. Opens `project_path` in VSCode with Remote-SSH connected to the compute node.
-  - Can also connect to an already running job with `--job <job_id>`.
+  Works with *_any_* SSH-accessible Slurm cluster.
+  1. Requests interactive job (`salloc <resources>`)
+  2. Waits for job to start
+  3. Opens `project_path` in VSCode via Remote-SSH
+  - Attach to a running job with `--job <job_id>`
 
 == mila code <mila-code>
 
 `mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
-  - Requests an interactive job on the Mila cluster with `salloc` and requested resources;
-  - Waits for job to start;
-  - Opens `my_project` folder in VSCode with Remote-SSH connected to the compute node.
+
+  - Interactive job on Mila: 1 GPU, 16G RAM, 6h
+  - Opens `my_project` in VSCode via Remote-SSH on the compute node
 
 == Useful SSH Config Entries: mila-cpu <mila-cpu>
 
-`mila init` creates an SSH config entry called `mila-cpu`. When used with `ssh mila-cpu`:
-1. Connects to the Mila cluster
-2. Checks for a running cpu job with name `'mila-cpu'`.
-  - If a job is found, connect to it.
-  - If no job is found, submit a new one with `sbatch`.
-3. Creates a new interactive terminal attached to the job.
-4. Job persists for 10 minutes after exiting.
+`mila init` creates the `mila-cpu` SSH host. `ssh mila-cpu`:
+1. Connects to Mila
+2. Finds a running `mila-cpu` job, or submits one with `sbatch`
+3. Opens an interactive terminal attached to the job
+4. Job persists 10 min after exit
 
 ```sshconfig
 Host mila-cpu
@@ -164,18 +161,18 @@ Host mila-cpu
   RemoteCommand ./milatools/entrypoint.sh mila-cpu
 ```
 
-- Useful for Remote-SSH with vscode (alternative to #ref(<mila-code>))
+- Alternative to #ref(<mila-code>) for VSCode Remote-SSH
 // - Can be modified for any cluster and resource type (e.g. `mila-gpu`, `tamia-cpu`, etc.)
 
 == Typical Research Workflow - Mila
 
 1. `mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
 
-2. Develop code iteratively, using the VSCode terminal (inside compute node) to run commands.
+2. Develop iteratively in the VSCode terminal (running on the compute node)
 
-3. Once the code is ready, submit a batch job with `sbatch` to run the code on more GPUs, for longer, etc.
+3. Once ready, submit `sbatch` jobs for longer / larger runs
 
-4. Move to other cluster if necessary, use same loop (with `--cluster=<cluster>`).
+4. Same loop on other clusters: `--cluster=<cluster>`
 
 
 = Environment Management
@@ -184,21 +181,21 @@ Host mila-cpu
 
 *A game-changer for Python projects*
 
-Awesome commands:
+Core commands:
 - `uv init`
 - `uv add/remove <package>`
 - `uv sync`
-- `uv run <command>` : Does `uv sync`, activates venv, and runs command.
+- `uv run <command>` — syncs + activates + runs
 
-Not recommended: `uv pip` / `uv venv`: (pip compatibility, no dep. tracking)
+Avoid: `uv pip` / `uv venv` (no dependency tracking)
 
-Useful global flags / environment variables:
-- `--offline` : Useful on clusters with no internet access on Compute Nodes (see #ref(<uv_on_drac>, supplement: "UV + DRAC"))
-- `--directory` Useful with a #ref(<code_checkpointing>) setup (project+venv setup in `$SLURM_TMPDIR`)
+Useful flags:
+- `--offline` (see #ref(<uv_on_drac>, supplement: "UV + DRAC"))
+- `--directory` (see #ref(<code_checkpointing>))
 
 == uv + PyTorch / CUDA dependencies
 
-You can use dependency groups for different CUDA versions!
+Dependency groups for different CUDA versions:
 
 
 #columns(2)[
@@ -233,7 +230,7 @@ You can use dependency groups for different CUDA versions!
   uv sync --extra=cuda130
   ```
 
-  - Very useful with a multi-cluster setup, where CUDA versions may differ between clusters. (See #ref(<cluv>) in later slides!)
+  - Multi-cluster setups with different CUDA versions (see #ref(<cluv>))
 ]
 
 == Using uv on DRAC Clusters <uv_on_drac>
@@ -259,7 +256,7 @@ flash-attn = { index = "drac-gentoo2023-generic" }
 
 #pagebreak()
 
-Alternatively, you can also use the DRAC wheelhouse by default, and use PyPI only as needed:
+Or use the DRAC wheelhouse by default; PyPI only as needed:
 
 #set text(
   size: 8pt
@@ -293,9 +290,7 @@ explicit = true
   size: 11pt
 )
 
-Some packages are normally only available though modules.
-
-Use the `sources` section of your project's `pyproject.toml` to get them from PyPI:
+Some packages are only available as modules. Use `tool.uv.sources` to pull them from PyPI:
 
 ```toml
 #pyproject.toml
@@ -308,12 +303,11 @@ rdkit = { index = "pypi" }
 
 == Example: UV + Flash-attn
 
-Flash-Attention is notoriously difficult to deal with:
-- pre-built wheels are not always available
-- Building from source is heavy (terrible on login nodes)
-  - 100s of threads, takes a very long time
+Flash-Attention pain points:
+- Pre-built wheels not always available
+- Building from source = 100s of threads, very slow (*don't do this on login nodes!*)
 
-*Solution 1*: Use a prebuilt wheel from the DRAC wheelhouse (works only on DRAC)
+*Solution 1*: Prebuilt wheel from DRAC wheelhouse (DRAC only)
 
 // / TODO: Show a config that uses the DRAC wheelhouse when --extra drac and also works otherwise?
 
@@ -333,9 +327,7 @@ flash-attn = { index = "drac-gentoo2023-generic" }
 
 #pagebreak()
 
-*Solution 2*: Build from source, and use a neat UV feature:
-
-UV can set environment variables when building a specific package!
+*Solution 2*: Build from source, with UV's per-package build env vars:
 
 ```toml
 #pyproject.toml
@@ -351,27 +343,21 @@ TORCH_CUDA_ARCH_LIST = "9.0"
 == Useful Slurm Commands
 
 - *`sbatch`* `--ntasks=4 --gpus=4 --cpus-per-task=16 --mem=32G --time=03:00:00 job.sh`
-  - Requests resources (GPUs, CPUs, RAM) for one or more _*tasks*_ and runs a job script (`job.sh`) on one or more of the cluster's compute nodes.
+  - Submits a batch job: requests resources for _*tasks*_, runs `job.sh`
 - *`salloc`* `--ntasks=4 --gpus=4 --cpus-per-task=16 --mem=32G --time=03:00:00`
-  - Similar to sbatch, but allocates resources and gives you an interactive shell on the compute node.
-  - Useful for debugging, testing, etc.
+  - Like sbatch, but drops you in an interactive shell on the node
 
 - *`srun`* `python main.py`
-  - Runs a "command" (e.g. `python main.py`) once per _*task*_ inside a job.
-  - (Can also be used to create jobs, but we don't recommend it)
+  - Runs a command once per _*task*_ inside a job
+  - (Avoid using it to create jobs)
 
 == `srun` is all you need!
 
-`srun` is _*the*_ way to run commands in a SLURM job.
+`srun` is _*the*_ way to run commands in a Slurm job.
 
-- `srun` takes care of launching the command on the right nodes, with the right environment variables,
-- Slurm partitions the resources (CPUs, GPUs, and memory) properly across tasks!
-
-- `srun` can be used to spawn different commands for each task (with `--multi-prog`)
-  - Hyper-Parameter Sweeps, or Coordinator / Worker setups for distributed training, etc.
-
-
-- (very niche): Slurm can even allocate different resources to different tasks within the same job!
+- Launches on the right nodes, sets env vars, partitions CPUs/GPUs/memory across tasks
+- `--multi-prog`: different command per task (sweeps, coordinator/worker)
+- Niche: heterogeneous resources per task!
     ```bash
     srun -n1 -c8 --mem-per-cpu=2gb server : -n16 --mem-per-cpu=1gb client
     ```
@@ -382,11 +368,9 @@ TORCH_CUDA_ARCH_LIST = "9.0"
 == Example: Easy Job Packing with `srun`
 
 - `srun --ntasks-per-gpu=2 uv run python main.py`
-  - Easily run multiple seeds with something like `seed=int(os.environ["SLURM_PROCID"])` in python!
+  - Multi-seed: use `seed=int(os.environ["SLURM_PROCID"])`
 
-What about when we want very different commands for each task?
-
--> `srun --multi-prog` to the rescue!
+Different commands per task → `srun --multi-prog`:
 
   ```text
   # task_commands.txt
@@ -405,9 +389,9 @@ What about when we want very different commands for each task?
 
 == Easy job submission <job_submission>
 
-*Problem*: Having the commands in your job script leads to having to manage lots of jobs scripts!
+*Problem*: One job script per config → script explosion
 
-*Solution*
+*Solution*: Generic `job.sh` + forward `"$@"`
 
 #columns(2)[
   job.sh:
@@ -437,9 +421,9 @@ What about when we want very different commands for each task?
 
 == Use Job Dependencies to prevent waste <job_dependencies>
 
-*problem*: Submitting a lot of jobs, but some of them fail (e.g. bug in the code, cluster instability, etc.) --> Waste of resources and time!
+*Problem*: Some jobs fail → downstream jobs waste resources
 
-This pairs nicely with the #ref(<job_submission>) setup from the previous slide:
+Pairs with #ref(<job_submission>):
 
 ```bash
 # Hyper-parameter sweep
@@ -456,7 +440,7 @@ sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c
 == Job Chunking: Get scheduled faster <job_chunking>
 
 
-Assuming your job script does #ref(<checkpointing>, supplement:"checkpointing") correctly, you can break up a long job into smaller chunks, which can get scheduled faster and reduce the time needed to get your results!
+With #ref(<checkpointing>, supplement:"checkpointing"), break long jobs into chunks → schedule faster, results sooner.
 
 ```bash
 #!/bin/bash
@@ -471,55 +455,52 @@ done
 
 == Flexible Job Layout
 
-On clusters that don't enforce full-node allocations (See #ref(<clusters>, supplement: "clusters")), being flexible about where the GPUs are laid out can help your jobs get scheduled faster!
+On clusters without enforced full-node allocations (see #ref(<clusters>, supplement: "clusters")), GPU layout flexibility → faster scheduling.
 
 *Suggestion*
 
-- Go from this: `sbatch --nodes=2 --ntasks-per-node=4 --gpus-per-task=1 job.sh`
-  - Asks for two full nodes with 4 GPUs each
-  - Can take a long time to schedule
+- From: `sbatch --nodes=2 --ntasks-per-node=4 --gpus-per-task=1 job.sh`
+  - 2 full nodes, 4 GPUs each — slow to schedule
 
-- To this: `sbatch `*`--nodes=1-8 --ntasks=8 --switches=1`*` --gpus-per-task=1 job.sh`
-  - Asks for 8 tasks with 1 GPU each, spread across 1 to 8 nodes, but preferably on a single switch
-  - Performance hit is minimized when using `--switches=1`. (Recall: #ref(<switches>, supplement: "switches"))
+- To: `sbatch `*`--nodes=1-8 --ntasks=8 --switches=1`*` --gpus-per-task=1 job.sh`
+  - 8 GPUs across 1-8 nodes, prefer one switch (see #ref(<switches>, supplement: "switches"))
 
 #linebreak()
 
 *Recommendations*
-- Be as flexible as possible, and use `sbatch --switches=1@3600`
-- Monitor the throughput degradation, find sweet-spot.
+- Use `sbatch --switches=1@3600`
+- Monitor throughput → find sweet-spot
 
 
 == Checkpointing is a must! <checkpointing>
 
-Proper checkpointing is *crucial*!
-- Enables running longer jobs on clusters with preemption (e.g. the Mila cluster)
-- Enables breaking up long jobs into smaller chunks for quicker scheduling (#ref(<job_chunking>))
-- Makes jobs resilient to failures (e.g. hardware failure, software bugs, etc.)
+Proper checkpointing is *crucial*. It enables:
+- Long jobs on preemptible clusters (e.g. Mila)
+- Job chunking (#ref(<job_chunking>))
+- Resilience to hardware/software failures
 
-- *Tip*: Consider using #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [Distributed Checkpointing]) when working with large models and multi-GPU jobs.
-  - (More info on this in the #ref(<efficient-checkpointing>) section later)
-  - Also see the TorchTitan talk here at Upper Bound 2026!
-  - Using "Async" mode enables more overlap between checkpointing and training
+- *Tip*: #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [Distributed Checkpointing]) for large multi-GPU models
+  - More: #ref(<efficient-checkpointing>) and the TorchTitan talk at Upper Bound 2026
+  - "Async" mode overlaps checkpointing with training
 
 
 == Code Checkpointing <code_checkpointing>
 
 / *problem*:
-  1. Submit job A with sbatch
-  2. Modify the Python scripts
-  3. Submit job B with sbatch
-  4. Job A starts running with the *modified* code (BAD!)
-  5. Job B starts running with the modified code
+  1. `sbatch` job A
+  2. Edit Python scripts
+  3. `sbatch` job B
+  4. Job A runs with *modified* code (BAD!)
+  5. Job B runs with modified code
   6. Results are weird???
 
 *Solution*:
-1. `safe_sbatch`: Prevents the job from being submitted if there are uncommitted changes.
-2. Job script uses the code at the commit when the job was submitted ("code checkpointing")
+1. `safe_sbatch`: refuses to submit with uncommitted changes
+2. Job script clones code at the submitted commit ("code checkpointing")
 
 #pagebreak()
 
-Using Slurm + Git + #ref(<uv>) enables easy code checkpointing:
+Slurm + Git + #ref(<uv>) enables easy code checkpointing:
 
 safe_sbatch:
 ```bash
@@ -540,9 +521,9 @@ safe_sbatch --gpus=1 --time=3-00:00:00 job.sh
 
 #pagebreak()
 
-Job script creates a copy of the code at the _exact_ commit that was used to submit the job, in a temporary directory (`$SLURM_TMPDIR`), and runs the code from there.
+Job clones the exact submitted commit into `$SLURM_TMPDIR`, runs from there.
 
-- Virtual environment is recreated in `/tmp` by #ref(<uv>) from the cache (also works in offline mode).
+- Venv recreated from #ref(<uv>) cache (offline-friendly)
 // - Commands are run in the cloned project
 
 / *Job.sh*: ```bash
@@ -559,11 +540,11 @@ srun uv run --directory $SLURM_TMPDIR/my_project "$@"
 
 == Einops <einops>
 
-*Problem*: Tensor `reshape` / `unsqueeze` / `permute` / `view` chains are cryptic, error-prone, and a pain to read months later.
+*Problem*: `reshape` / `permute` / `view` chains are cryptic and error-prone
 
-*Solution*: `einops` lets you write tensor manipulations as a string of named axes.
+*Solution*: `einops` — tensor ops as named axes
 
-Example: patchifying an image batch for a Vision Transformer.
+Example: patchifying an image batch (ViT)
 
 #set text(size: 9pt)
 #columns(2)[
@@ -596,24 +577,20 @@ Example: patchifying an image batch for a Vision Transformer.
 
 #pagebreak()
 
-Also very useful:
+Also useful:
 
 - `einops.reduce(x, "b c h w -> b c", "mean")`
 - `einops.repeat(x, "h w -> h w c", c=3)`
 - `einops.einsum`
-- `einops` Layers! (`Rearrange`, `Reduce`, `EinMix`), which can be used in `nn.Sequential` blocks, etc.
-- And lots more!
+- Layers: `Rearrange`, `Reduce`, `EinMix` (drop in `nn.Sequential`)
 
-Check out the docs at https://einops.rocks/ for more examples and use cases.
-
+Docs: https://einops.rocks/
 
 Pair with #ref(<jaxtyping>) for shape-checked tensors!
 
 == Jaxtyping <jaxtyping>
 
-`jaxtyping` adds shape + dtype to tensor type hints.
-
-- Works for Jax / PyTorch / NumPy, etc
+Shape + dtype in tensor type hints. Works with Jax / PyTorch / NumPy.
 
 ```python
 from jaxtyping import Float
@@ -628,7 +605,7 @@ def matrix_multiply(x: Float[Tensor, "dim1 dim2"],
 
 #pagebreak()
 
-- Can be checked at runtime (for example during tests) when combined with `beartype` (or `typeguard`).
+Runtime-checkable with `beartype` (or `typeguard`):
 
 ```toml
 #pyproject.toml
@@ -636,7 +613,7 @@ def matrix_multiply(x: Float[Tensor, "dim1 dim2"],
 addopts = "--jaxtyping-packages=my_project,beartype.beartype"
 ```
 
-Also, useful as a shorthand for checking tensor type, dtype and shape:
+Also handy as an inline shape check:
 
 ```python
 assert isinstance(output, Float32[Tensor, "3 128 128"])
@@ -744,21 +721,21 @@ run = wandb.init(
 
 #pagebreak()
 
-- *Artifacts*: version datasets, checkpoints, and results — reproducible and shareable
+- *Artifacts*: version datasets, checkpoints, results
   ```python
   artifact = wandb.Artifact("model-v1", type="model")
   artifact.add_file("checkpoint.pt")
   run.log_artifact(artifact)
   ```
 
-- *Sweeps*: distributed hyperparameter search — one sweep controller, many agents
+- *Sweeps*: distributed hyperparameter search — controller + many agents
   ```bash
   wandb sweep sweep.yaml          # define search space, returns sweep ID
   wandb agent <entity>/<project>/<sweep_id>   # run on each compute node
   ```
 
-- `WANDB_SILENT=true` suppresses noisy logging in job `.out` files
-- `WANDB_DIR=$SLURM_TMPDIR` keeps run files on fast local storage during the job
+- `WANDB_SILENT=true` → cleaner job `.out` files
+- `WANDB_DIR=$SLURM_TMPDIR` → run files on fast local storage
 
 
 
@@ -767,7 +744,7 @@ run = wandb.init(
 
 == Reproducibility testing <tensor-regression>
 
-URL: #link("https://github.com/mila-iqia/tensor_regression", "github.com/mila-iqia/tensor_regression")
+#link("https://github.com/mila-iqia/tensor_regression", "github.com/mila-iqia/tensor_regression")
 
 ```python
 import pytest
@@ -780,9 +757,9 @@ def test_initialization_is_reproducible(seed: int, tensor_regression):
 ```
 
 Based on #link("https://github.com/ESSS/pytest-regressions", "pytest-regressions")
-- Saves simple tensor statistics (shape, dtype, min/max/mean) in a `.yaml` file that can be saved with git.
-- Value differs from expected --> Error
-- File not present --> Error. (Generate missing files with `--gen-missing` or `--regen-all`)
+- Saves tensor stats (shape, dtype, min/max/mean) in a git-committed `.yaml`
+- Stats differ → test fails
+- File missing → fails (generate with `--gen-missing` / `--regen-all`)
 
 
 #pagebreak()
@@ -813,8 +790,7 @@ def test_train_step_is_reproducible(seed: int, tensor_regression):
 
 == Example: Test-Driven Debugging of PyTorch Code
 
-A researcher is having issues with a custom PyTorch op with hand-written forward + backward passes.
-It works correctly for small inputs, but explodes and CUDA OOMs for larger inputs.
+Custom PyTorch op with hand-written fwd/bwd: works at batch=16, CUDA OOMs at batch=128.
 
 *Step 1*: Pin the forward/backward passes with a test:
 
@@ -836,7 +812,7 @@ def test_custom_op_forward_backward(tensor_regression, batch_size: int):
 
 #set text(size: 11pt)
 
-*Step 2*: Iterative debugging / optimization. Always know whenever you break the forward/backward pass!
+*Step 2*: Iterative debug/optimize — instantly know if you break fwd/bwd!
 
 == (!!) GitHub CI + Slurm Clusters <github_ci_slurm>
 
@@ -857,22 +833,19 @@ def test_custom_op_forward_backward(tensor_regression, batch_size: int):
 #pagebreak()
 
 1. Isn't this a security risk?
-  - Somewhat. Repo owners have to approve GitHub workflows manually before they can run.
-  - CI runners act only as the user, no additional permissions.
+  - Somewhat. Maintainers must approve PR workflows
+  - CI runner acts as the user, no extra permissions
 
-2. What about MFA authentication?
-  - SSH Multiplexing to preserve manual SSH connections (with MFA) on the machine with initial self-hosted runner.
-    - Hacky, brittle, ill-advised, but it works!
-  - Robot nodes + dedicated SSH keys that only do `sbatch runner_job.sh`
-    - More trouble, more "secure".
+2. MFA?
+  - SSH multiplexing (reuse authenticated session) — hacky but works
+  - Or robot SSH keys restricted to `sbatch runner_job.sh`
 
 
 = Debugging
 
 == Debugging Multi-GPU Jobs
 
-(PyTorch)
-Easiest: VSCode Debugger + `torchrun`:
+(PyTorch) VSCode Debugger + `torchrun`:
 
 #set text(size: 9pt)
 
@@ -899,7 +872,7 @@ Easiest: VSCode Debugger + `torchrun`:
 
 == Debugging Multi-Node Jobs with VSCode
 
-Launch `debugpy` on each task with a unique port, then attach VSCode to each process:
+`debugpy` per task on a unique port, then attach VSCode:
 
 ```bash
 # job.sh — each task listens on a different port (5678, 5679, …)
@@ -916,7 +889,7 @@ srun python -m debugpy --listen 0.0.0.0:$((5678 + SLURM_PROCID)) \
 }
 ```
 
-See: https://github.com/lebrice/mila-docs/blob/8919d6a352e7c6f3ec0c99441571400848ce8ae5/docs/examples/advanced/imagenet/.vscode/launch.json for the full VsCode launch configuration.
+Full VSCode launch config: https://github.com/lebrice/mila-docs/blob/8919d6a352e7c6f3ec0c99441571400848ce8ae5/docs/examples/advanced/imagenet/.vscode/launch.json
 
 
 = Performance Optimization
@@ -953,7 +926,7 @@ See: https://github.com/lebrice/mila-docs/blob/8919d6a352e7c6f3ec0c9944157140084
 
 == Dataloader Bottlenecks
 
-*Symptom*: GPU utilization is low even though the model is large and batches are big.
+*Symptom*: low GPU utilization despite large model and big batches.
 
 #set text(size: 8pt)
 *Profiler timeline — `num_workers=0` (GPU starved):*
@@ -979,7 +952,7 @@ See: https://github.com/lebrice/mila-docs/blob/8919d6a352e7c6f3ec0c9944157140084
 )
 #set text(size: 11pt)
 
-GPU blocks on every batch — wasted compute budget!
+GPU blocks every batch — wasted compute!
 
 #pagebreak()
 
@@ -1029,7 +1002,7 @@ for batch in dataloader:
 )
 #set text(size: 11pt)
 
-GPU stays fully busy — the next batch is always ready before the step ends.
+GPU stays busy — next batch always ready.
 
 
 == Using the filesystem efficiently
@@ -1047,7 +1020,7 @@ GPU stays fully busy — the next batch is always ready before the step ends.
 
 #pagebreak()
 
-*Best practice — copy dataset in at job start, results out at job end*:
+*Pattern — copy in at start, results out at end*:
 ```bash
 cp -r $SCRATCH/datasets/my_dataset $SLURM_TMPDIR/
 
@@ -1058,8 +1031,8 @@ python train.py \
 cp -r $SLURM_TMPDIR/final_results $SCRATCH/
 ```
 
-*Avoid millions of small files* on the shared FS — high metadata latency kills throughput.
-Prefer: WebDataset (`.tar` shards), HDF5, or SQLite over directories of individual images/arrays.
+*Avoid millions of small files* on the shared FS — metadata latency kills throughput.
+Prefer: WebDataset (`.tar` shards), HDF5, or SQLite.
 
 
 
@@ -1084,7 +1057,7 @@ Prefer: WebDataset (`.tar` shards), HDF5, or SQLite over directories of individu
   )
 ]
 
-*Problem*: Each worker uses Numpy, which detects N-cpus available cpus. With N workers and default `OMP_NUM_THREADS`, you get `N x OMP_NUM_THREADS` threads competing for N_CPU cores → constant context-switching → adding more workers makes simulation *slower*.
+*Problem*: NumPy in each worker grabs all CPUs → `N × OMP_NUM_THREADS` threads on `N` cores → context-switching → more workers = *slower*
 
 *Fix*:
 ```bash
@@ -1096,11 +1069,10 @@ export OMP_NUM_THREADS=1
 
 == Tip: Mixing PyTorch and Jax
 
-There are Pros to each framework!
-Can you use both and get the best of both worlds? --> *Yes!*
+Use both, get the best of both worlds:
 
-- #link("https://github.com/mila-iqia/torch_jax_interop", "torch-jax-interop") (made by us at Mila)
-  - Uses `dlpack` api from Jax/PyTorch, with Zero-copy conversion on the GPU!
+- #link("https://github.com/mila-iqia/torch_jax_interop", "torch-jax-interop") (Mila)
+  - `dlpack` API → zero-copy GPU conversion
 
 ```python
 import torch
@@ -1115,7 +1087,7 @@ some_torch_tensor = torch.arange(5, device="cuda")
 torch_output = some_jax_function(some_torch_tensor)
 ```
 
-Also: #link("https://github.com/google/torchax", "torchax") (Different approach, made by Google.)
+Also: #link("https://github.com/google/torchax", "torchax") (Google, different approach)
 
 
 
@@ -1147,13 +1119,13 @@ with profile(
 uvx --with=torch-tb-profiler tensorboard --logdir=./log/profiler
 ```
 
-Opens an interactive view in the browser with:
-- GPU utilization timeline (spot idle gaps instantly)
-- Kernel-level breakdown (which ops dominate)
+Browser view shows:
+- GPU utilization timeline (spot idle gaps!)
+- Kernel-level breakdown
 - Memory usage over time
 - Operator-level stack traces
 
-VsCode automatically forwards the port so the profiler UI is available on localhost:6006 (for example with #ref(<mila-code>)).
+VSCode auto-forwards the port → localhost:6006 (with #ref(<mila-code>))
 
 
 #pagebreak()
@@ -1164,7 +1136,7 @@ VsCode automatically forwards the port so the profiler UI is available on localh
 
 == Efficient Checkpointing <efficient-checkpointing>
 
-For large multi-GPU models, use `torch.distributed.checkpoint` — each rank saves/loads its own shard *in parallel*:
+Large multi-GPU models → `torch.distributed.checkpoint`. Each rank saves/loads its shard *in parallel*:
 
 // #set text(size: 9pt)
 // ```python
@@ -1177,19 +1149,19 @@ For large multi-GPU models, use `torch.distributed.checkpoint` — each rank sav
 // ```
 // #set text(size: 11pt)
 
-Advantages over rank-0-only checkpointing:
-- *Much faster* — I/O is parallelized across all ranks
-- *Reshard on load* — switch from 8 to 16 GPUs without re-saving
-- *FSDP-aware* — handles sharded optimizer states correctly
+Advantages over rank-0-only:
+- *Much faster* — I/O parallelized across ranks
+- *Reshard on load* — 8 → 16 GPUs, no re-save
+- *FSDP-aware* — handles sharded optimizer states
 
-See: #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [PyTorch Distributed Checkpointing tutorial]) as well as the talk from the *TorchTitan* team here at Upper Bound 2026!
+See: #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [PyTorch Distributed Checkpointing tutorial]) + the *TorchTitan* talk at Upper Bound 2026!
 
 
 = Ongoing work and open problems
 
 == cluv <cluv>
 
-Cluv: *Cl* uster + *uv*: Simple CLI tool to dispatch jobs and synchronize uv projects across multiple Slurm clusters.
+*Cl* uster + *uv*: CLI to dispatch jobs and sync uv projects across Slurm clusters.
 
 - `cluv login`
 - `cluv sync`
@@ -1207,7 +1179,7 @@ Research Template Repository: https://mila-iqia.github.io/ResearchTemplate/
 
 == AutoResearch
 
-*AutoResearch* + *Slurm*: an AI agent framework that autonomously conducts experiments on Slurm compute clusters.
+*AutoResearch* + *Slurm*: AI agent framework that autonomously runs experiments on Slurm clusters.
 
 #align(center)[
   #fletcher.diagram(
@@ -1224,14 +1196,14 @@ Research Template Repository: https://mila-iqia.github.io/ResearchTemplate/
   )
 ]
 
-1. *Hypothesize*: LLM agent proposes an experiment (architecture, hyperparameters, code changes)
-2. *Submit*: agent calls `sbatch` to run the experiment on real GPUs
-3. *Monitor*: polls for job completion, reads logs and metrics
-4. *Analyze*: LLM interprets results and refines its research direction
-5. *Repeat* → progressively more targeted experiments
+1. *Hypothesize*: LLM proposes experiment (architecture, hyperparams, code)
+2. *Submit*: agent calls `sbatch`
+3. *Monitor*: polls for completion, reads logs/metrics
+4. *Analyze*: LLM interprets, refines direction
+5. *Repeat* → progressively targeted experiments
 
-*Why Slurm?* Clean, sandboxed interface — the agent requests compute through the standard scheduler, inheriting all resource management and isolation for free.
+*Why Slurm?* Clean, sandboxed interface — agent inherits resource management and isolation for free.
 
-Work in progress at Mila — stay tuned!
+WIP at Mila — stay tuned!
 
 = Q&A

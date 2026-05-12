@@ -16,6 +16,6 @@ dependencies = [
 
 [tool.ruff]
 lint.ignore = ["F722"]
-
+format.preview = true
 # [tool.pylance]
 # ignore = ["F722"]
