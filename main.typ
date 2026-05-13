@@ -41,13 +41,13 @@
     #align(center)[
     Slides + Code
     #linebreak()
-    #image("github_qr_code.png", width:30%)
+    #image("images/github_qr_code.png", width:30%)
     #link("https://github.com/lebrice/upper_bound_2026_slides", "github.com/lebrice/upper_bound_2026_slides")
     ]
     #colbreak()
     Live Q&A with Slido
     #linebreak()
-    #image("QR_Code_Slido.png", width:30%)
+    #image("images/QR_Code_Slido.png", width:30%)
     #link("https://app.sli.do/event/9c6SVnBwxftYKfCzfihNts", "app.sli.do/event/9c6SVnBwxftYKfCzfihNts")
   ]
 )
@@ -905,7 +905,7 @@ def test_custom_op_forward_backward(tensor_regression, batch_size: int):
 3. Job spawns an *ephemeral GitHub Runner* on a GPU compute node → runs tests → results appear on GitHub!
 
 #align(center)[
-  #image("github_ci_example.png", width: 90%)
+  #image("images/github_ci_example.png", width: 90%)
 ]
 
 #align(right)[Example: #ref(<research_template>)]
@@ -996,7 +996,7 @@ with profile(
 uvx --with=torch-tb-profiler tensorboard --logdir=logs
 ```
 #align(center)[
-#image("tensorboard_torch_profiler.png", width: 70%)
+#image("images/tensorboard_torch_profiler.png", width: 70%)
 ]
 
 // Browser view shows:
