@@ -187,7 +187,7 @@
         // Display the counter for all except last section
         if next_section_page - current_section_page < 3  {
           // For sections that only have 1 page leave the counter blank
-          // NOTE: that it also dosnt show a counter if last section < 2 pages
+          // NOTE: that it also doesn't show a counter if last section < 2 pages
         } else if current_section_nr < int(sections.len()) {
           // Current Section Dot
           link((page:current_section_page, x:0pt,y:0pt))[
@@ -478,9 +478,9 @@
   }
 
   // Outline
-  if (toc == true) {
-    outline()
-  }
+  // if (toc == true) {
+  //   outline()
+  // }
   // Normal Content
   content
 

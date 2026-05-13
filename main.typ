@@ -16,7 +16,7 @@
   title-color: purple.darken(50%),
   ratio: 25/14, // aspect ratio of the slides, any valid number
   layout: "medium", // one of "small", "medium", "large"
-  toc: true,
+  toc: false,
   // count: "number", // one of "dot", "dot-section", "number", or none
   count: "dot-section", // one of "dot", "dot-section", "number", or none
   footer: true,
@@ -29,47 +29,100 @@
 
 == About this presentation
 
-- Tips, tricks, and best practices from Mila's IDT team
-- Organized to roughly follow a _typical_ research workflow
-- Sit back, relax, grab some useful nuggets!
-
 #quote([
-  Goal: Tips and Tricks to increase your productivity and reduce friction in your research workflow with Slurm clusters.
+  Goal: Share some useful tips and tricks to increase your productivity and reduce friction in your research workflow with Slurm clusters.
 ])
 
-Slides + code: #link("https://github.com/lebrice/upper_bound_2026_slides")
+- Organized to roughly follow a "_typical_" ML researcher's workflow
+- Sit back, relax, feel free to ask questions and share your input.
+
+#columns(2,
+  [
+    #align(center)[
+    Slides + Code
+    #linebreak()
+    #image("github_qr_code.png", width:30%)
+    #link("https://github.com/lebrice/upper_bound_2026_slides", "github.com/lebrice/upper_bound_2026_slides")
+    ]
+    #colbreak()
+    Live Q&A with Slido
+    #linebreak()
+    #image("QR_Code_Slido.png", width:30%)
+    #link("https://app.sli.do/event/9c6SVnBwxftYKfCzfihNts", "app.sli.do/event/9c6SVnBwxftYKfCzfihNts")
+  ]
+)
+
+// == Intended Audience
+// *Audience*: AI/ML researchers with access to Slurm clusters (also relevant for cluster staff)
+
+// What this talk *is* about:
+// - Using Slurm clusters efficiently
+// - Tools / good practices / tips to reduc friction in your research workflow
+// - Setting up for easy performance optimization
+
+
+// What this talk is *not* about:
+
+// - Low-level ML code optimization
+// - Theory of parallelism / distributed training
 
 #outline()
 
-== Intended Audience
-
-*Audience*: AI/ML researchers with Slurm cluster access (also relevant for cluster staff)
-
-What this talk *is* about:
-
-- Using Slurm clusters efficiently
-- Reducing friction in your research workflow
-- Setting up for easy performance optimization
-
-
-What this talk is *not* about:
-
-- Low-level ML code optimization
-- Theory of parallelism / distributed training
-
-
 = Introduction
 
+== About Mila
 
-== What is a Compute cluster, really? <switches>
+#columns(2)[
+  *AI Research Institute founded in 2018* to bring together researchers from other institutions, with Yoshua Bengio as scientific director.
 
-*Components*:
-- *Login Nodes*: submit jobs, edit code, transfer files. *Never run heavy workloads here!*
-- *Compute Nodes*: machines with GPUs/CPUs — these run your jobs
-- *Storage Servers*: shared distributed filesystem (Lustre, BeeGFS) accessible from all nodes
-- *Network Switches*: the fabric connecting nodes; placement affects inter-node bandwidth
+  #v(0.5em)
+  #align(center)[
+    #image("images/slide12_pic04.jpg", width: 55%)
+  ]
+  #colbreak()
+  *Today*
+  #v(0.5em)
+  #table(
+    columns: 2,
+    stroke: none,
+    align: (right, left),
+    inset: (x: 6pt, y: 4pt),
+    [*159*], [Professors],
+    [*1154*], [Students (mostly PhD)],
+    [*185*], [Employees
+      - Tech transfer
+      - AI4Humanity
+      - IT support, soft. dev. and HPC
+    ],
+    [*145*], [Industry Partners],
+    [*41*], [Startups founded by Mila researchers],
+  )
+]
 
-/ TODO: Add a Diagram of a compute cluster
+== About IDT
+
+*About the IDT Team*
+
+- Help Researchers use compute resources efficiently
+- Build software tools, Documentation, tutorial sessions, in-person help
+
+*About Me*
+
+Fabrice Normandin, Research #strike([Engineer])  Scientist
+- Former Mila student turned staff (\~4 years ago).
+- GANs --> Continual Learning --> Deep RL / LLMs (a bit of "_everything_")
+- Goal: Build the most efficient ML research setup (and use it!)
+
+
+// == What is a Compute cluster, really? <switches>
+
+// *Components*:
+// - *Login Nodes*: submit jobs, edit code, transfer files. *Never run heavy workloads here!*
+// - *Compute Nodes*: machines with GPUs/CPUs — these run your jobs
+// - *Storage Servers*: shared distributed filesystem (Lustre, BeeGFS) accessible from all nodes
+// - *Network Switches*: the fabric connecting nodes; placement affects inter-node bandwidth
+
+// / TODO: Add a Diagram of a compute cluster
 
 // Component Connection,Technology Standard,Typical Bandwidth (Current Gen)
 // GPU ↔ GPU Memory,HBM3 / HBM3e,3.3 TB/s – 8.0 TB/s
@@ -90,14 +143,15 @@ What this talk is *not* about:
 //   [Node ↔ Storage (network FS)],    [~10 GB/s],
 // )
 
-#pagebreak()
+// #pagebreak()
 
-*Network Switches*: hierarchy — jobs across many switches pay extra latency. Use `sbatch --switches=1` to prefer one switch.
+// == Compute cluster basics?
+// *Network Switches*: hierarchy — jobs across many switches pay extra latency. Use `sbatch --switches=1` to prefer one switch.
 
-*Distributed Filesystem*:
-- _Striped_ data → high throughput for large sequential reads
-- High _metadata latency_ on small files (each `open()` = network round-trip)
-- Avoid millions of tiny files — prefer `.tar` shards, HDF5, WebDataset, or `$SLURM_TMPDIR`
+// *Distributed Filesystem*:
+// - _Striped_ data → high throughput for large sequential reads
+// - High _metadata latency_ on small files (each `open()` = network round-trip)
+// - Avoid millions of tiny files — prefer `.tar` shards, HDF5, WebDataset, or `$SLURM_TMPDIR`
 
 
 
@@ -465,7 +519,7 @@ On clusters without enforced full-node allocations (see #ref(<clusters>, supplem
   - 2 full nodes, 4 GPUs each — slow to schedule
 
 - To: `sbatch `*`--nodes=1-8 --ntasks=8 --switches=1`*` --gpus-per-task=1 job.sh`
-  - 8 GPUs across 1-8 nodes, prefer one switch (see #ref(<switches>, supplement: "switches"))
+  - 8 GPUs across 1-8 nodes, prefer one switch // (see #ref(<switches>, supplement: "switches"))
 
 #linebreak()
 
