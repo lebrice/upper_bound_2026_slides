@@ -34,10 +34,12 @@
 - Sit back, relax, grab some useful nuggets!
 
 #quote([
-  Increase your productivity and reduce friction in your research workflow with Slurm clusters.
+  Goal: Tips and Tricks to increase your productivity and reduce friction in your research workflow with Slurm clusters.
 ])
 
 Slides + code: #link("https://github.com/lebrice/upper_bound_2026_slides")
+
+#outline()
 
 == Intended Audience
 
@@ -175,7 +177,7 @@ Host mila-cpu
 4. Same loop on other clusters: `--cluster=<cluster>`
 
 
-= Environment Management
+= Python Environment Management with uv
 
 == uv <uv>
 
@@ -685,6 +687,37 @@ class SwiGLU(nn.Module):
         return self.down(F.silu(gate) * up)
 ```
 #set text(size: 11pt)
+
+== TensorDict
+
+```python
+from tensordict import TensorDict
+
+data = TensorDict(
+    obs=torch.randn(128, 84),
+    action=torch.randn(128, 4),
+    reward=torch.randn(128, 1),
+    batch_size=[128],
+)
+
+data_gpu = data.to("cuda")      # all tensors move together
+sub = data_gpu[:64]              # all tensors are sliced
+stacked = torch.stack([data, data])  # works like a tensor
+```
+
+== \@tensorclass
+
+```python
+from tensordict import tensorclass
+import torch
+
+@tensorclass
+class MyData:
+    X: torch.Tensor
+    y: torch.Tensor
+```
+
+https://docs.pytorch.org/tensordict/stable/reference/generated/tensordict.tensorclass.html
 
 == Weights & Biases (WandB)
 
@@ -1235,6 +1268,7 @@ From *Cl*~uster + *UV*: CLI to dispatch jobs and sync uv projects across Slurm c
 - Submit: `cluv submit <cluster> <job_script> [args]`
   - use `first` instead of `<cluster>` to dispatch to all clustes and keep first running job
 
+// #image(https://docs.pytorch.org/tutorials/_static/img/profiler_rocm_chrome_trace_view.png)
 
 Learn more at https://github.com/mila-iqia/cluv
 
