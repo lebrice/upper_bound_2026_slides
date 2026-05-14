@@ -17,8 +17,8 @@
   ratio: 25/14, // aspect ratio of the slides, any valid number
   layout: "medium", // one of "small", "medium", "large"
   toc: false,
-  // count: "number", // one of "dot", "dot-section", "number", or none
-  count: "dot-section", // one of "dot", "dot-section", "number", or none
+  count: "number", // one of "dot", "dot-section", "number", or none
+  // count: "dot-section", // one of "dot", "dot-section", "number", or none
   footer: true,
   theme: "normal",
   footer-title: "Tips & tricks for efficient research with Slurm compute clusters",
@@ -45,10 +45,12 @@
     #link("https://github.com/lebrice/upper_bound_2026_slides", "github.com/lebrice/upper_bound_2026_slides")
     ]
     #colbreak()
+    #align(center)[
     Live Q&A with Slido
     #linebreak()
     #image("images/QR_Code_Slido.png", width:30%)
     #link("https://app.sli.do/event/9c6SVnBwxftYKfCzfihNts", "app.sli.do/event/9c6SVnBwxftYKfCzfihNts")
+    ]
   ]
 )
 
@@ -81,7 +83,7 @@
     #image("images/slide12_pic04.jpg", width: 90%)
     // todo: image of Hugo Larochelle
     #colbreak()
-    / todo: Image of Hugo Larochelle
+    / todo: Photo of Hugo Larochelle
     ]
   ]
   #colbreak()
@@ -96,7 +98,8 @@
     [*1154*], [Students (mostly PhD)],
     [*185*], [Employees
       - Applied ML Research
-      // - AI4Humanity
+      - AI4Humanity
+      - Admin / HR / Staff
       - IT support, soft. dev. and HPC
     ],
     [*145*], [Industry Partners],
@@ -113,8 +116,8 @@
 
 *About Me*
 
-Fabrice Normandin, Research #strike([Engineer])  Scientist
-- Former Mila student turned staff (\~4 years ago).
+Fabrice Normandin, Research #strike([Engineer])  Scientist 🎉
+- Mila student turned staff (\~4 years ago).
 - GANs --> Continual Learning --> Deep RL / LLMs (a bit of "_everything_")
 - Goal: Build the most efficient ML research setup (and use it!)
 
@@ -259,6 +262,8 @@ Avoid: `uv pip` / `uv venv` (no dependency tracking)
 Useful flags:
 - `--offline` (see #ref(<uv_on_drac>, supplement: "UV + DRAC"))
 - `--directory` (see #ref(<code_checkpointing>))
+
+*vs. Apptainer / Singularity?* For most Python-only workflows, uv is _dramatically_ simpler: no image build step, no `--bind` mount juggling, no need to rebuild for a one-line dep change. Containers still win when you need system libraries or non-Python toolchains — but reach for them only when uv isn't enough.
 
 == uv + PyTorch / CUDA dependencies
 
@@ -508,7 +513,11 @@ Different commands per task → `srun --multi-prog`:
 
 *Problem*: Some jobs fail → downstream jobs waste resources
 
-Pairs with #ref(<job_submission>):
+/ todo: Add a Simple DAG diagram to illustrate job dependencies?
+
+
+
+Pairs nicely with #ref(<job_submission>):
 
 ```bash
 # Hyper-parameter sweep
@@ -527,9 +536,7 @@ sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c
 
 With #ref(<checkpointing>, supplement:"checkpointing"), break long jobs into chunks → schedule faster, results sooner.
 
-Chunking with job arrays and `%1`:
-
-(`%1` means that only one job in the array can be running at a time).
+Chunking with job arrays and `%1` (`%1` := only one job in the array can be running at a time):
 
 ```bash
 #!/bin/bash
@@ -599,6 +606,28 @@ Proper checkpointing is *crucial*. It enables:
   - More: #ref(<efficient-checkpointing>) and the TorchTitan talk at Upper Bound 2026
   - "Async" mode overlaps checkpointing with training
 
+
+== Graceful Preemption <graceful_preemption>
+
+On preemptible clusters (e.g. Mila), Slurm sends a signal *before* killing your job. Catch it, checkpoint, exit cleanly.
+
+```bash
+#!/bin/bash
+#SBATCH --signal=B:USR1@60   # send SIGUSR1 60s before timeout/preemption
+#SBATCH --requeue            # auto-resubmit after preemption
+srun uv run python train.py "$@"
+```
+
+```python
+import signal
+def _on_preempt(signum, frame):
+    save_checkpoint(model, optimizer, step)   # final flush
+    sys.exit(0)                                # exit 0 → Slurm requeues cleanly
+signal.signal(signal.SIGUSR1, _on_preempt)
+```
+
+- Pairs with #ref(<checkpointing>): you _*must*_ have a working checkpoint path first
+- `--requeue` + an `id` derived from `SLURM_JOB_ID` (see #ref(<wandb>)) → seamless resumption
 
 == Code Checkpointing <code_checkpointing>
 
@@ -1179,7 +1208,7 @@ for batch in tqdm.tqdm(dataloader, unit_scale=dataloader.batch_size, unit="sampl
     metrics = model.training_step(batch)
     ...
 # will produce output like this:
-# Epoch 0: 100%|██████████| 500/500 [00:10<00:00, 50.0 samples/s]
+# 100%|██████████| 500/500 [00:10<00:00, 50.0 samples/s]
 ```
 
 #table(
@@ -1310,8 +1339,29 @@ for batch in dataloader:
 
 Excellent guide (*must read*!): https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html
 
+*Still GPU-starved after this?* Look at #link("https://github.com/libffcv/ffcv", "FFCV") or #link("https://developer.nvidia.com/dali", "NVIDIA DALI") (input processing on the GPU)
 
 #pagebreak()
+
+== `torch.compile` + Mixed Precision <torch_compile>
+
+Often the cheapest 2–4× speedup left on the table.
+
+```python
+import torch
+
+torch.set_float32_matmul_precision("high")   # enables TF32 on Ampere+ (free on H100/A100)
+
+model = MyModel().to("cuda")
+model = torch.compile(model)                  # JITs into fused kernels (first step is slow!)
+
+scaler = torch.amp.GradScaler()
+for batch in dataloader:
+    with torch.amp.autocast("cuda", dtype=torch.bfloat16):
+        loss = model(batch)
+    loss.backward()
+    optimizer.step()
+```
 
 
 == Using the filesystem efficiently
@@ -1409,6 +1459,8 @@ Also: #link("https://github.com/google/torchax", "torchax") (Google, different a
 
 Large multi-GPU models → `torch.distributed.checkpoint`. Each rank saves/loads its shard *in parallel*!
 
+/ todo : Add image of distributed checkpointing from their docs
+
 // #set text(size: 9pt)
 // ```python
 // import torch.distributed.checkpoint as dcp
@@ -1441,6 +1493,11 @@ From *Cl*~uster + *UV*: CLI to dispatch jobs and sync uv projects across Slurm c
 // #image(https://docs.pytorch.org/tutorials/_static/img/profiler_rocm_chrome_trace_view.png)
 
 Learn more at https://github.com/mila-iqia/cluv
+
+/ live demo :
+  ```bash
+  cluv submit first job.sh -- python --version
+  ```
 
 == Research Template Repository <research_template>
 
@@ -1475,5 +1532,9 @@ Research Template Repository: https://mila-iqia.github.io/ResearchTemplate/
 *Why Slurm?* Clean, sandboxed interface — agent inherits resource management and isolation for free.
 
 WIP at Mila — stay tuned!
+= Q & A
+== Thank you!
 
-= Q&A
+Please let us know if you have any questions or comments!
+
+// = Q&A
