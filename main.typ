@@ -114,13 +114,17 @@
 - Help Researchers use compute resources efficiently
 - Build software tools, Documentation, tutorial sessions, in-person help
 
-*About Me*
-
+*About Me*:
 Fabrice Normandin, Research #strike([Engineer])  Scientist 🎉
 - Mila student turned staff (\~4 years ago).
-- GANs --> Continual Learning --> Deep RL / LLMs (a bit of "_everything_")
-- Goal: Build the most efficient ML research setup (and use it!)
+- IDT Office Hours, helped 300+ researchers with wide range of issues (Optimizing PyTorch / Jax code, use Slurm effectively, write better code, etc.)
+- Research background: GANs --> Continual Learning --> Deep RL / a bit of LLMs
+- Current Goal: Build a very efficient ML research setup (à-la AutoResearch + Slurm) //for (myself and) Mila students!
 
+
+This talk is very biased by my background and experience!
+
+Please share your own tips and tricks in the Q&A!
 
 // == What is a Compute cluster, really? <switches>
 
@@ -303,6 +307,10 @@ Dependency groups for different CUDA versions:
   ```
 
   - Multi-cluster setups with different CUDA versions (see #ref(<cluv>))
+
+
+  #v(1cm)
+  *But wait, can I use this on my cluster?*
 ]
 
 == Using uv on DRAC Clusters <uv_on_drac>
@@ -382,7 +390,7 @@ flash-attn = { index = "drac-gentoo2023-generic" }
 
 #pagebreak()
 
-== Example: UV + Flash-attn
+== Tip: UV + Flash-attn
 
 Flash-Attention pain points:
 - Pre-built wheels not always available
@@ -421,7 +429,9 @@ TORCH_CUDA_ARCH_LIST = "9.0"
 ```
 
 
-= Submitting Jobs
+⏩ Next up: Slurm Tips and Tricks!
+
+= Slurm Tips and Tricks
 
 == Slurm Basics
 
@@ -507,8 +517,6 @@ Different commands per task → `srun --multi-prog`:
   ```
 ]
 
-= Job Management
-
 == Use Job Dependencies to prevent waste <job_dependencies>
 
 *Problem*: Some jobs fail → downstream jobs waste resources
@@ -529,7 +537,6 @@ jobid_c=$(sbatch --parsable job.sh --lr=0.03)
 sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c \
         job.sh --lr=best
 ```
-
 
 == Job Chunking: Get scheduled faster <job_chunking>
 
@@ -680,6 +687,8 @@ srun --ntasks-per-node=1 --ntasks=$SLURM_JOB_NUM_NODES bash -e <<END
 END
 srun uv run --directory $SLURM_TMPDIR/my_project "$@"
 ```
+
+⏩ Next up: Writing Better ML Code!
 
 = Writing Better ML Code
 
@@ -966,6 +975,8 @@ Or in code: `wandb.init(mode="offline")`.
 - `WANDB_DIR=$SLURM_TMPDIR` → run files on fast local storage
 
 
+
+⏩ Next up: Testing for ML Code!
 
 
 = Testing for ML code

@@ -34,7 +34,7 @@ Quick map: Introduction, then connection tools, environment management, job subm
 
 ## Slide 5 — About Mila
 
-Since most of you aren't from Mila: Mila is the AI research institute in Montreal, founded in 2018 to bring researchers from local universities together — Yoshua Bengio is scientific director, Hugo Larochelle now too. Today: ~160 professors, ~1150 students mostly PhD-level, ~185 employees, 145 industry partners. We're one of the larger academic AI institutes globally — and we run our own compute cluster.
+Since most of you aren't from Mila: Mila is the AI research institute in Montreal, founded in 2018 to bring researchers from local universities together — Yoshua Bengio was the scientific director, Hugo Larochelle now too. Today: ~160 professors, ~1150 students mostly PhD-level, ~185 employees, 145 industry partners. We're one of the larger academic AI institutes globally — and we run our own compute cluster.
 
 ---
 
