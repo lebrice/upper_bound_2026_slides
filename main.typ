@@ -73,11 +73,16 @@
 == About Mila
 
 #columns(2)[
-  *AI Research Institute founded in 2018* to bring together researchers from other institutions, with Yoshua Bengio as scientific director.
+  *AI Research Institute founded in 2018* to bring together researchers from other institutions, with Yoshua Bengio as scientific director, followed by Hugo Larochelle.
 
   #v(0.5em)
   #align(center)[
-    #image("images/slide12_pic04.jpg", width: 55%)
+    #columns(2)[
+    #image("images/slide12_pic04.jpg", width: 90%)
+    // todo: image of Hugo Larochelle
+    #colbreak()
+    / todo: Image of Hugo Larochelle
+    ]
   ]
   #colbreak()
   *Today*
@@ -90,8 +95,8 @@
     [*159*], [Professors],
     [*1154*], [Students (mostly PhD)],
     [*185*], [Employees
-      - Tech transfer
-      - AI4Humanity
+      - Applied ML Research
+      // - AI4Humanity
       - IT support, soft. dev. and HPC
     ],
     [*145*], [Industry Partners],
@@ -99,9 +104,9 @@
   )
 ]
 
-== About IDT
+== About our team (IDT)
 
-*About the IDT Team*
+*Innovation, Development and Technology*
 
 - Help Researchers use compute resources efficiently
 - Build software tools, Documentation, tutorial sessions, in-person help
@@ -155,7 +160,7 @@ Fabrice Normandin, Research #strike([Engineer])  Scientist
 
 
 
-== Canadian Compute Clusters <clusters>
+== Context: Canadian Compute Clusters <clusters>
 
 #table(
   stroke: 1pt,
@@ -174,7 +179,7 @@ Fabrice Normandin, Research #strike([Engineer])  Scientist
 
 - Mila cluster has preemptible long jobs and limited non-preemptible short jobs.
 
-= Getting Connected
+= Connecting to Compute Clusters
 
 == milatools <milatools>
 
@@ -202,6 +207,9 @@ Install: `uv tool install milatools`
   - Interactive job on Mila: 1 GPU, 16G RAM, 6h
   - Opens `my_project` in VSCode via Remote-SSH on the compute node
 
+
+/ live demo: `mila code repos/upper_bound_2026_slides --cluster=mila --salloc --gpus=4 --mem=16G --time=06:00:00`
+
 == Useful SSH Config Entries: mila-cpu <mila-cpu>
 
 `mila init` creates the `mila-cpu` SSH host. `ssh mila-cpu`:
@@ -219,6 +227,9 @@ Host mila-cpu
 
 - Alternative to #ref(<mila-code>) for VSCode Remote-SSH
 // - Can be modified for any cluster and resource type (e.g. `mila-gpu`, `tamia-cpu`, etc.)
+
+/ live demo: `ssh mila-cpu`
+
 
 == Typical Research Workflow - Mila
 
@@ -291,11 +302,65 @@ Dependency groups for different CUDA versions:
 
 == Using uv on DRAC Clusters <uv_on_drac>
 
+Disclaimer : DRAC does *not* _currently_ support using uv on their clusters.
+
+Tip: Use the DRAC wheelhouse by default; PyPI only as needed:
+
+#columns(2)[
+
+  #set text(
+    size: 6pt
+  )
+  ```toml
+  [[tool.uv.index]]
+  name = "drac-gentoo2023-x86-64-v3"
+  url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/x86-64-v3"
+  format = "flat"
+
+  [[tool.uv.index]]
+  name = "drac-gentoo2023-generic"
+  url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/generic"
+  format = "flat"
+
+  [[tool.uv.index]]
+  name = "drac-generic"
+  url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/generic"
+  format = "flat"
+  default = true
+
+  [[tool.uv.index]]
+  name = "pypi"
+  url = "https://pypi.org/simple"
+  explicit = true
+  ```
+  #set text(size: 11pt)
+  #colbreak()
+
+  Some packages are only available as modules. Use `tool.uv.sources` to get them from PyPI:
+
+  ```toml
+  #pyproject.toml
+  [tool.uv.sources]
+  mpi4py = { index = "pypi" }
+  opencv = { index = "pypi" }
+  pyarrow = { index = "pypi" }
+  rdkit = { index = "pypi" }
+  ```
+]
+
+
+#set text( // reset to the original size.
+  size: 11pt
+)
+
+#pagebreak()
+
 // #set text(
 //   size: 8pt
 // )
 
-Use the DRAC wheelhouse when convenient (for example, `flash-attn`)
+
+Alternatively, use the DRAC wheelhouse when convenient (for example, `flash-attn`)
 
 ```toml
 # pyproject.toml
@@ -312,58 +377,13 @@ flash-attn = { index = "drac-gentoo2023-generic" }
 
 #pagebreak()
 
-Or use the DRAC wheelhouse by default; PyPI only as needed:
-
-#set text(
-  size: 8pt
-)
-```toml
-[[tool.uv.index]]
-name = "drac-gentoo2023-x86-64-v3"
-url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/x86-64-v3"
-format = "flat"
-
-[[tool.uv.index]]
-name = "drac-gentoo2023-generic"
-url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/generic"
-format = "flat"
-
-[[tool.uv.index]]
-name = "drac-generic"
-url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/generic"
-format = "flat"
-default = true
-
-[[tool.uv.index]]
-name = "pypi"
-url = "https://pypi.org/simple"
-explicit = true
-```
-
-#pagebreak()
-
-#set text( // reset to the original size.
-  size: 11pt
-)
-
-Some packages are only available as modules. Use `tool.uv.sources` to pull them from PyPI:
-
-```toml
-#pyproject.toml
-[tool.uv.sources]
-mpi4py = { index = "pypi" }
-opencv = { index = "pypi" }
-pyarrow = { index = "pypi" }
-rdkit = { index = "pypi" }
-```
-
 == Example: UV + Flash-attn
 
 Flash-Attention pain points:
 - Pre-built wheels not always available
 - Building from source = 100s of threads, very slow (*don't do this on login nodes!*)
 
-*Solution 1*: Prebuilt wheel from DRAC wheelhouse (DRAC only)
+*Solution \#1*: Prebuilt wheel from DRAC wheelhouse (DRAC only)
 
 // / TODO: Show a config that uses the DRAC wheelhouse when --extra drac and also works otherwise?
 
@@ -383,7 +403,9 @@ flash-attn = { index = "drac-gentoo2023-generic" }
 
 #pagebreak()
 
-*Solution 2*: Build from source, with UV's per-package build env vars:
+*Solution \#2*: Build from source.
+
+/ Tip: uv allows setting environment variables when building specific packages!
 
 ```toml
 #pyproject.toml
@@ -396,7 +418,7 @@ TORCH_CUDA_ARCH_LIST = "9.0"
 
 = Submitting Jobs
 
-== Useful Slurm Commands
+== Slurm Basics
 
 - *`sbatch`* `--ntasks=4 --gpus=4 --cpus-per-task=16 --mem=32G --time=03:00:00 job.sh`
   - Submits a batch job: requests resources for _*tasks*_, runs `job.sh`
@@ -411,9 +433,16 @@ TORCH_CUDA_ARCH_LIST = "9.0"
 
 `srun` is _*the*_ way to run commands in a Slurm job.
 
-- Launches on the right nodes, sets env vars, partitions CPUs/GPUs/memory across tasks
-- `--multi-prog`: different command per task (sweeps, coordinator/worker)
-- Niche: heterogeneous resources per task!
+There is _often no need_ for `torchrun` / `accelerate launch` / etc!
+
+- Launches on all the nodes, with the right env vars, partitions CPUs/GPUs/memory across tasks
+
+
+
+*Fancy tips*:
+- `--multi-prog`: allows different commands for each task (sweeps, coordinator/worker)
+
+- Super Niche: heterogeneous resources per task!
     ```bash
     srun -n1 -c8 --mem-per-cpu=2gb server : -n16 --mem-per-cpu=1gb client
     ```
@@ -445,7 +474,7 @@ Different commands per task → `srun --multi-prog`:
 
 == Easy job submission <job_submission>
 
-*Problem*: One job script per config → script explosion
+*Problem*: Editing the same job.sh is tedious. Using a job script per experiment → explosion of scripts.
 
 *Solution*: Generic `job.sh` + forward `"$@"`
 
@@ -498,6 +527,30 @@ sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c
 
 With #ref(<checkpointing>, supplement:"checkpointing"), break long jobs into chunks → schedule faster, results sooner.
 
+Chunking with job arrays and `%1`:
+
+(`%1` means that only one job in the array can be running at a time).
+
+```bash
+#!/bin/bash
+#SBATCH --array=1-5%1
+#SBATCH --time=03:00:00
+#(...)
+
+# Consider `SLURM_ARRAY_JOB_ID` (id of first job in the array)
+# as the "Job ID" for all jobs in this array.
+# For example, for WandB:
+export WANDB_RUN_ID=$SLURM_ARRAY_JOB_ID
+srun uv run "$@"
+```
+
+
+
+#pagebreak()
+
+Alternative approach using job dependencies:
+
+
 ```bash
 #!/bin/bash
 # Job Chain Example
@@ -509,21 +562,30 @@ for i in $(seq 2 $num_chunks); do
 done
 ```
 
-== Flexible Job Layout
+And in Python:
+```python
+previous_job_id = int(os.environ["SLURM_JOB_DEPENDENCY"].removeprefix("afterok:"))
+```
 
-On clusters without enforced full-node allocations (see #ref(<clusters>, supplement: "clusters")), GPU layout flexibility → faster scheduling.
+== Use a Flexible Job Layout
+
+On clusters that don't enforce full-node allocations (see #ref(<clusters>, supplement: "clusters")), a flexible job layout → faster scheduling!
 
 *Suggestion*
 
 - From: `sbatch --nodes=2 --ntasks-per-node=4 --gpus-per-task=1 job.sh`
   - 2 full nodes, 4 GPUs each — slow to schedule
 
-- To: `sbatch `*`--nodes=1-8 --ntasks=8 --switches=1`*` --gpus-per-task=1 job.sh`
-  - 8 GPUs across 1-8 nodes, prefer one switch // (see #ref(<switches>, supplement: "switches"))
+- To: `sbatch `*`--nodes=1-4 --ntasks=8 --switches=1`*` --gpus-per-task=1 job.sh`
+  - 8 GPUs across 1-4 nodes, prefer one switch // (see #ref(<switches>, supplement: "switches"))
 
 #linebreak()
 
-*Recommendations*: use `sbatch --switches=1@3600` and monitor throughput to find the sweet-spot
+*Recommendations*:
+
+- use `sbatch --switches=1@3600` and monitor training throughput (with e.g. #ref(<wandb>))
+
+- Goal is to optimize time-to-result! (queue time + runtime) - This is often worth doing!
 
 
 == Checkpointing is a must! <checkpointing>
@@ -759,7 +821,10 @@ sub = data_gpu[:64]              # all tensors are sliced
 stacked = torch.stack([data, data])  # works like a tensor
 ```
 
-== \@tensorclass
+https://docs.pytorch.org/tensordict/stable/index.html
+
+== tensorclass
+
 
 ```python
 from tensordict import tensorclass
@@ -773,34 +838,85 @@ class MyData:
 
 https://docs.pytorch.org/tensordict/stable/reference/generated/tensordict.tensorclass.html
 
-== Weights & Biases (WandB)
+== Config / Argument Parsing
 
-*No internet on compute nodes?* Log offline, sync later:
+Recommendations, from simplest to most complex
 
-```bash
-export WANDB_MODE=offline
-uv run python train.py        # logs to ./wandb/run-*/
-# Later, from the login node:
-wandb sync --sync-all
-```
 
-Or in code: `wandb.init(mode="offline")`.
+*Simple-Parsing*: https://github.com/lebrice/SimpleParsing
+  - Simplest, neatly-typed (based on Dataclasses). Simple extension of argparse. (Also, made by me)
 
-#pagebreak()
 
-*Useful tips*:
+*Tyro CLI*: https://github.com/brentyi/tyro
+- Same idea. More widely used (not as flexible, but good enough)
 
-- Save Slurm environment variables in the wandb config!
+
+*Hydra*: https://hydra.cc
+  - More complex, used a lot in combination with the Submitit launcher (really not great).
+  - Steep learning curve, quite heavy, poorly/unmaintained.
+  - *Avoid using Hydra* unless you really have lots of datasets / models to run, over more than one project.
+
+Lots of other great options!
+
+
+== Weights & Biases (WandB) <wandb>
+
+#link("https://wandb.ai", "WandB") is amazing! Consider trying it!
+
+*Tips*:
+- Save Slurm environment variables in the WandB config! Very useful for debugging later.
+- Use `resume: allow` and an `id` based on Job ID to easily resume runs, or for #ref(<job_chunking>, supplement: "job chunking")
+
+#set text(size: 10pt)
 ```python
 import os
 import wandb
 run = wandb.init(
-  ...,
+  name=os.environ.get("SLURM_JOB_ID"),
+  id=os.environ.get("SLURM_JOB_ID"),
+  resume="allow",
   config=vars(args) | {
     "env": {k: v for k, v in os.environ.items() if k.startswith("SLURM_")}
   }
 )
 ```
+
+#pagebreak()
+
+*Tip*: Combine with #ref(<job-packing>, supplement: "job-packig with `srun`") to easily group multiple seeds per run!
+
+```python
+import os
+import wandb
+JOB_ID=os.environ["SLURM_JOB_ID"]
+TASK_ID=os.environ["SLURM_PROCID"]
+run = wandb.init(
+  id=f"{JOB_ID}_{TASK_ID}",  # unique run ID per task
+  name=f"{JOB_ID}_{TASK_ID}",
+  group=JOB_ID, # group by job ID (e.g. all seeds in the same job are grouped together)
+  resume="allow",
+  config=vars(args) | {
+    "env": {k: v for k, v in os.environ.items() if k.startswith("SLURM_")}
+  }
+)
+```
+
+#pagebreak()
+
+*No internet on compute nodes?* Log offline, sync later:
+
+```bash
+export WANDB_MODE=offline
+export UV_OFFLINE=1
+srun uv run python train.py        # logs to ./wandb/run-*/
+```
+Later, from the login node:
+```
+wandb sync --sync-all
+```
+
+Or in code: `wandb.init(mode="offline")`.
+
 
 #pagebreak()
 
