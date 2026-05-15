@@ -2,7 +2,7 @@ import jax
 import torch.nn.functional as F
 from beartype import beartype
 from einops import rearrange
-from jaxtyping import Float, jaxtyped
+from jaxtyping import Float, Float32, jaxtyped
 from torch import Tensor, nn
 
 
@@ -15,6 +15,10 @@ class SomeClass:
 
     def full(self, fill: float) -> Float[jax.Array, " {self.some_value}+3"]:
         return jax.numpy.full((self.some_value + 3,), fill)
+
+
+# note: does not appear to work just yet.
+type FloatTensor[A] = Float[Tensor, A]
 
 
 class SomeModule(nn.Module):
@@ -31,9 +35,6 @@ class SomeModule(nn.Module):
         self, input: Float[Tensor, "b {self.in_dims}"]
     ) -> Float[Tensor, "b {self.out_dims}"]:
         return self.linear2(self.activation(self.linear1(input)))
-
-
-from jaxtyping import Float32
 
 
 @jaxtyped(typechecker=beartype)
@@ -140,15 +141,16 @@ if __name__ == "__main__":
     patches = patchify(images, p=2)
     print(patches.shape)  # torch.Size([2, 4, 12])`
 
-    # # JaxTyping will raise because shapes arent correct):
+    # # JaxTyping will raise because shapes are not correct):
     # images = torch.randn(2, 3, 4, 4)
     # patches = patchify_wrong(images, p=3)  # raises because 4 is not
 
     # test for the SwiGLU block:
     block = SwiGLU(d_model=16, d_ff=64)
     x = torch.randn(2, 10, 16)
+    x = torch.randn(2, 102, 17)
     out = block(x)
     from jaxtyping import Float32
 
     assert isinstance(out, Float32[Tensor, "2 10 16"])  # torch.Size([2, 10, 16])
-    assert isinstance(out, Float[Tensor, "2 10 16"])  # torch.Size([2, 10, 16])
+    assert isinstance(out, FloatTensor["2 10 16"])  # torch.Size([2, 10, 16])

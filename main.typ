@@ -17,8 +17,8 @@
   ratio: 25/14, // aspect ratio of the slides, any valid number
   layout: "medium", // one of "small", "medium", "large"
   toc: false,
-  // count: "number", // one of "dot", "dot-section", "number", or none
-  count: "dot-section", // one of "dot", "dot-section", "number", or none
+  count: "number", // one of "dot", "dot-section", "number", or none
+  // count: "dot-section", // one of "dot", "dot-section", "number", or none
   footer: true,
   theme: "normal",
   footer-title: "Tips & tricks for efficient research with Slurm compute clusters",
@@ -493,21 +493,20 @@ TORCH_CUDA_ARCH_LIST = "9.0"
 Your project is setup properly!
 *You want to run some experiments!*
 
-But _How_?
 
-
-* Section Outline *
+* Slurm Tips and Tricks *
 
 1. Slurm Basics
+  - Reuse your job scripts
+  - Code Checkpointing
+  - Checkpointing is a must!
 2. `srun` is all you need!
-3. Example: Easy Job Packing with `srun`
-4. Easy job submission
-5. Use Job Dependencies to prevent waste
-6. Job Chunking: Get scheduled faster
-7. Use a Flexible Job Layout
-8. Checkpointing is a must!
-9. Graceful Preemption
-10. Code Checkpointing
+  - Easy Job Packing with `srun`
+3. Faster Results // Short, Flexible jobs always win!
+  - Graceful Preemption
+  - Use Job Dependencies to prevent waste
+  - Job Chunking: Get scheduled faster
+  - Use a Flexible Job Layout
 
 
 == Slurm Basics
@@ -526,6 +525,71 @@ But _How_?
 ⏩ I barely ever use `srun`, what's so great about it?
 ]
 
+== Easy job submission (Reuse your job scripts!) <job_submission>
+
+Editing the same job.sh is tedious. Using a job script per experiment → explosion of scripts. *Solution:*
+
+//  Generic `job.sh` + forward `"$@"`
+
+#columns(2)[
+  ```bash
+  #!/bin/bash
+  #SBATCH --time=01:00:00
+  #SBATCH --gpus=1
+  #SBATCH --cpus-per-task=4
+  #SBATCH --mem-per-cpu=4G
+  #SBATCH --output=logs/%j.out
+
+  # (setup code)
+
+  srun python main.py "$@"
+  ```
+  #colbreak()
+  // In a terminal:
+  ```console
+  $ sbatch job.sh --lr=0.01
+  $ sbatch job.sh --lr=0.001
+  $ sbatch job.sh --lr=0.001 --nlayers=32
+  ```
+]
+
+
+== Checkpointing is a must! <checkpointing>
+
+Proper checkpointing is *crucial*. It enables:
+- Long jobs on preemptible clusters (e.g. Mila)
+- Job chunking (#ref(<job_chunking>))
+- Resilience to hardware/software failures
+
+- *Tip*: #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [Distributed Checkpointing]) for large multi-GPU models
+  - More: #ref(<efficient-checkpointing>) and the TorchTitan talk at Upper Bound 2026
+  - "Async" mode overlaps checkpointing with training
+
+
+== Graceful Preemption <graceful_preemption>
+
+// On preemptible clusters (e.g. Mila), Slurm sends a signal *before* killing your job. Catch it, checkpoint, exit cleanly.
+
+```bash
+#!/bin/bash
+#SBATCH --signal=B:USR1@60   # send SIGUSR1 60s before timeout/preemption
+#SBATCH --requeue            # auto-resubmit after preemption
+srun uv run python train.py "$@"
+```
+
+```python
+import signal
+def _on_preempt(signum, frame):
+    save_checkpoint(model, optimizer, step)   # final flush
+    sys.exit(0)                                # exit 0 → Slurm requeues cleanly
+signal.signal(signal.SIGUSR1, _on_preempt)
+```
+
+// - Pairs with #ref(<checkpointing>): you _*must*_ have a working checkpoint path first
+// - `--requeue` + an `id` derived from `SLURM_JOB_ID` (see #ref(<wandb>)) → seamless resumption
+
+
+
 == `srun` is all you need!
 
 `srun` is _*the*_ way to run commands in a Slurm job.
@@ -538,9 +602,12 @@ But _How_?
   srun uv run python main.py --lr=0.01
   ```
 
+// - Simple to use
+- Easy job packing #ref(<job-packing>)
+- Extremely flexible! #ref(<flexible_job_layout>)
+// - Easy to scale distributed jobs!
 
-_Often no need_ for `torchrun` / `accelerate launch` / etc!
-
+_no need_ for `torchrun` / `accelerate launch` / etc!
 
 // *Fancy tips*:
 // - `--multi-prog`: allows different commands for each task (sweeps, coordinator/worker)
@@ -554,14 +621,18 @@ _Often no need_ for `torchrun` / `accelerate launch` / etc!
 ⏩ How?
 ]
 
-== Example: Easy Job Packing with `srun` <job-packing>
+== Easy Job Packing with srun <job-packing>
 
 Need to run lots of jobs, but each job does not use all the GPU memory!
 
 
 *Run multiple seeds*
-  - `srun --ntasks-per-gpu=4 uv run python main.py`
-  - `seed = int(os.environ["SLURM_PROCID"])` or similar
+  - ```bash
+  srun --ntasks-per-gpu=4 uv run python main.py
+  ```
+  - ```python
+  seed = int(os.environ["SLURM_PROCID"])
+  ```
 
 #pagebreak()
 
@@ -590,33 +661,6 @@ python train.py --seed=1 --lr=0.001 --batch-size=128
 // ⏩ Won't this be difficult to manage with lots of commands?
 // ]
 
-== Easy job submission <job_submission>
-
-Editing the same job.sh is tedious. Using a job script per experiment → explosion of scripts. *Solution:*
-
-//  Generic `job.sh` + forward `"$@"`
-
-#columns(2)[
-  ```bash
-  #!/bin/bash
-  #SBATCH --time=01:00:00
-  #SBATCH --gpus=1
-  #SBATCH --cpus-per-task=4
-  #SBATCH --mem-per-cpu=4G
-  #SBATCH --output=logs/%j.out
-
-  # (setup code)
-
-  srun python main.py "$@"
-  ```
-  #colbreak()
-  // In a terminal:
-  ```console
-  $ sbatch job.sh --lr=0.01
-  $ sbatch job.sh --lr=0.001
-  $ sbatch job.sh --lr=0.001 --nlayers=32
-  ```
-]
 
 == Use Job Dependencies to prevent waste <job_dependencies>
 
@@ -639,7 +683,7 @@ sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c
         job.sh --lr=best
 ```
 
-== Job Chunking: Get scheduled faster <job_chunking>
+== Job Chunking: Short Jobs always win! <job_chunking>
 
 
 With #ref(<checkpointing>, supplement:"checkpointing"), break long jobs into chunks → schedule faster, results sooner.
@@ -682,60 +726,28 @@ And in Python:
 previous_job_id = int(os.environ["SLURM_JOB_DEPENDENCY"].removeprefix("afterok:"))
 ```
 
-== Use a Flexible Job Layout
+== Flexible Jobs always win! Use a Flexible Job Layout <flexible_job_layout>
 
-On clusters that don't enforce full-node allocations (see #ref(<clusters>, supplement: "clusters")), a flexible job layout → faster scheduling!
+Large jobs can take a long time to schedule!
 
-*Suggestion*
+➡️ Flexible job layout → faster scheduling!
 
-- From: `sbatch --nodes=2 --ntasks-per-node=4 --gpus-per-task=1 job.sh`
+
+// *Suggestion*
+
+- From: `sbatch --nodes=2 --ntasks-per-node=4 --gpus-per-node=4 job.sh`
   - 2 full nodes, 4 GPUs each — slow to schedule
 
 - To: `sbatch `*`--nodes=1-4 --ntasks=8 --switches=1`*` --gpus-per-task=1 job.sh`
-  - 8 GPUs across 1-4 nodes, prefer one switch // (see #ref(<switches>, supplement: "switches"))
+  - 8 GPUs across 1-4 nodes, prefer one network switch // (see #ref(<switches>, supplement: "switches"))
 
-#linebreak()
+#v(3em)
 
 *Recommendations*:
-
 - use `sbatch --switches=1@3600` and monitor training throughput (with e.g. #ref(<wandb>))
-
-- Goal is to optimize time-to-result! (queue time + runtime) - This is often worth doing!
-
-
-== Checkpointing is a must! <checkpointing>
-
-Proper checkpointing is *crucial*. It enables:
-- Long jobs on preemptible clusters (e.g. Mila)
-- Job chunking (#ref(<job_chunking>))
-- Resilience to hardware/software failures
-
-- *Tip*: #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [Distributed Checkpointing]) for large multi-GPU models
-  - More: #ref(<efficient-checkpointing>) and the TorchTitan talk at Upper Bound 2026
-  - "Async" mode overlaps checkpointing with training
+- Goal: optimize time-to-result! (queue time + runtime)
 
 
-== Graceful Preemption <graceful_preemption>
-
-On preemptible clusters (e.g. Mila), Slurm sends a signal *before* killing your job. Catch it, checkpoint, exit cleanly.
-
-```bash
-#!/bin/bash
-#SBATCH --signal=B:USR1@60   # send SIGUSR1 60s before timeout/preemption
-#SBATCH --requeue            # auto-resubmit after preemption
-srun uv run python train.py "$@"
-```
-
-```python
-import signal
-def _on_preempt(signum, frame):
-    save_checkpoint(model, optimizer, step)   # final flush
-    sys.exit(0)                                # exit 0 → Slurm requeues cleanly
-signal.signal(signal.SIGUSR1, _on_preempt)
-```
-
-- Pairs with #ref(<checkpointing>): you _*must*_ have a working checkpoint path first
-- `--requeue` + an `id` derived from `SLURM_JOB_ID` (see #ref(<wandb>)) → seamless resumption
 
 == Code Checkpointing <code_checkpointing>
 
@@ -776,7 +788,7 @@ safe_sbatch --gpus=1 --time=3-00:00:00 job.sh
 
 Job clones the exact submitted commit into `$SLURM_TMPDIR`, runs from there.
 
-- Venv recreated from #ref(<uv>) cache (offline-friendly)
+- Venv recreated from uv cache (works offline)
 // - Commands are run in the cloned project
 
 / *Job.sh*: ```bash
@@ -789,9 +801,14 @@ END
 srun uv run --directory $SLURM_TMPDIR/my_project "$@"
 ```
 
+
+
 ⏩ Next up: Writing Better ML Code!
 
 = Writing Better ML Code
+
+== What to do?
+You want to start a new project. How do you go about doing it?
 
 == Einops <einops>
 
@@ -842,7 +859,11 @@ Also useful:
 - `einops.einsum`
 - Layers: `Rearrange`, `Reduce`, `EinMix` (drop in `nn.Sequential`)
 
-Docs: https://einops.rocks/. Pair with #ref(<jaxtyping>) for shape-checked tensors!
+Docs: https://einops.rocks/.
+
+#align(end + horizon)[
+⏩ Pairs beautifully with #ref(<jaxtyping>)!
+]
 
 == Jaxtyping <jaxtyping>
 
@@ -929,8 +950,7 @@ class SwiGLU(nn.Module):
 
     @jaxtyped(typechecker=beartype)
     def forward(
-        self,
-        x: Float[Tensor, "b n {self.d_model}"],
+      self, x: Float[Tensor, "b n {self.d_model}"]
     ) -> Float[Tensor, "b n {self.d_model}"]:
         gate, up = rearrange(
             self.gate_up(x),  "b n (two d_ff) -> two b n d_ff", two=2,
@@ -955,8 +975,9 @@ data_gpu = data.to("cuda")      # all tensors move together
 sub = data_gpu[:64]              # all tensors are sliced
 stacked = torch.stack([data, data])  # works like a tensor
 ```
-
+#align(right + horizon)[
 https://docs.pytorch.org/tensordict/stable/index.html
+]
 
 == tensorclass
 
@@ -971,8 +992,9 @@ class MyData:
     y: torch.Tensor
 ```
 
+#align(right + horizon)[
 https://docs.pytorch.org/tensordict/stable/reference/generated/tensordict.tensorclass.html
-
+]
 == Config / Argument Parsing
 
 Recommendations, from simplest to most complex
