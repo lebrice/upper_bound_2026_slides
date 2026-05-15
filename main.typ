@@ -530,11 +530,17 @@ But _How_?
 
 `srun` is _*the*_ way to run commands in a Slurm job.
 
-There is _often no need_ for `torchrun` / `accelerate launch` / etc!
-
+// Easily scale your jobs!
 // - Launches on all the nodes, with the right env vars, partitions CPUs/GPUs/memory across tasks
 
-/ todo : Diagram of srun env vars / srun code example.
+/ Example:
+  ```bash
+  srun uv run python main.py --lr=0.01
+  ```
+
+
+_Often no need_ for `torchrun` / `accelerate launch` / etc!
+
 
 // *Fancy tips*:
 // - `--multi-prog`: allows different commands for each task (sweeps, coordinator/worker)
@@ -544,15 +550,22 @@ There is _often no need_ for `torchrun` / `accelerate launch` / etc!
 //     srun -n1 -c8 --mem-per-cpu=2gb server : -n16 --mem-per-cpu=1gb client
 //     ```
 
-
-
+#align(end + horizon)[
+⏩ How?
+]
 
 == Example: Easy Job Packing with `srun` <job-packing>
 
-- `srun --ntasks-per-gpu=2 uv run python main.py`
-  - Multi-seed: use `seed=int(os.environ["SLURM_PROCID"])`
+Need to run lots of jobs, but jobs don't fully use the GPU!
+
+
+*Option 1*:  #h(3em) `srun --ntasks-per-gpu=2 uv run python main.py`
+  - In Python, use `seed=int(os.environ["SLURM_PROCID"])` or similar
 
 Different commands per task → `srun --multi-prog`:
+#footnote([
+(See #link("https://slurm.schedmd.com/srun.html#OPT_multi-prog", [`srun` documentation]))
+])
 
   ```text
   # task_commands.txt
@@ -565,17 +578,18 @@ Different commands per task → `srun --multi-prog`:
   srun --ntasks=4 --ntasks-per-gpu=4 --multi-prog task_commands.txt
   ```
 
-(See #link("https://slurm.schedmd.com/srun.html#OPT_multi-prog", [`srun` documentation]))
 
+// #align(end + horizon)[
+// ⏩ Won't this be difficult to manage with lots of commands?
+// ]
 
 == Easy job submission <job_submission>
 
-*Problem*: Editing the same job.sh is tedious. Using a job script per experiment → explosion of scripts.
+Editing the same job.sh is tedious. Using a job script per experiment → explosion of scripts. *Solution:*
 
-*Solution*: Generic `job.sh` + forward `"$@"`
+//  Generic `job.sh` + forward `"$@"`
 
 #columns(2)[
-  job.sh:
   ```bash
   #!/bin/bash
   #SBATCH --time=01:00:00
@@ -589,8 +603,7 @@ Different commands per task → `srun --multi-prog`:
   srun python main.py "$@"
   ```
   #colbreak()
-
-  In a terminal:
+  // In a terminal:
   ```console
   $ sbatch job.sh --lr=0.01
   $ sbatch job.sh --lr=0.001
