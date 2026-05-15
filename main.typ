@@ -556,28 +556,35 @@ _Often no need_ for `torchrun` / `accelerate launch` / etc!
 
 == Example: Easy Job Packing with `srun` <job-packing>
 
-Need to run lots of jobs, but jobs don't fully use the GPU!
+Need to run lots of jobs, but each job does not use all the GPU memory!
 
 
-*Option 1*:  #h(3em) `srun --ntasks-per-gpu=2 uv run python main.py`
-  - In Python, use `seed=int(os.environ["SLURM_PROCID"])` or similar
+*Run multiple seeds*
+  - `srun --ntasks-per-gpu=4 uv run python main.py`
+  - `seed = int(os.environ["SLURM_PROCID"])` or similar
 
-Different commands per task → `srun --multi-prog`:
+#pagebreak()
+
+*Different commands per task with`srun --multi-prog`!*
 #footnote([
 (See #link("https://slurm.schedmd.com/srun.html#OPT_multi-prog", [`srun` documentation]))
 ])
 
   ```text
   # task_commands.txt
-  0 python train.py --lr=0.01  --batch-size=128
-  1 python train.py --lr=0.001 --batch-size=128
-  2 python train.py --lr=0.01  --batch-size=256
-  3 python train.py --lr=0.001 --batch-size=256
-  ```
-  ```bash
-  srun --ntasks=4 --ntasks-per-gpu=4 --multi-prog task_commands.txt
+  0-1 python train.py --seed=%o --lr=0.01
+  2-3 python train.py --seed=%o --lr=0.001
   ```
 
+  ```bash
+  srun --ntasks=4 --ntasks-per-gpu=4 --multi-prog task_commands.txt --batch-size=128
+  ```
+```bash
+python train.py --seed=0 --lr=0.01 --batch-size=128
+python train.py --seed=1 --lr=0.01 --batch-size=128
+python train.py --seed=0 --lr=0.001 --batch-size=128
+python train.py --seed=1 --lr=0.001 --batch-size=128
+```
 
 // #align(end + horizon)[
 // ⏩ Won't this be difficult to manage with lots of commands?
