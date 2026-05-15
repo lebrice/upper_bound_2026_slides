@@ -38,3 +38,7 @@ images/slide38_pic02.png filter=lfs diff=lfs merge=lfs -text
 images/slide42_pic06.png filter=lfs diff=lfs merge=lfs -text
 images/github_qr_code.png filter=lfs diff=lfs merge=lfs -text
 images/QR_Code_Slido.png filter=lfs diff=lfs merge=lfs -text
+images/tensorboard_torch_profiler.png filter=lfs diff=lfs merge=lfs -text
+images/uv.png filter=lfs diff=lfs merge=lfs -text
+images/github_ci_example.png filter=lfs diff=lfs merge=lfs -text
+images/portrait-of-hugo-larochelle.png.webp filter=lfs diff=lfs merge=lfs -text
