@@ -870,14 +870,23 @@ Docs: https://einops.rocks/.
 Shape + dtype in tensor type hints. Works with Jax / PyTorch / NumPy.
 
 ```python
-from jaxtyping import Float
+from jaxtyping import Float, Int
 from torch import Tensor
 
 # Accepts floating-point 2D arrays with matching axes
-def matrix_multiply(x: Float[Tensor, "A B"],
-                    y: Float[Tensor, "B C"]
-                  ) -> Float[Tensor, "A C"]:
+def matrix_multiply(x: Float[Tensor, "A B"], y: Float[Tensor, "B C"]) -> Float[Tensor, "A C"]:
     return x @ y
+
+Image = Float[jax.Array, "channels height width"]
+BatchImage = Float[Image, "batch"]
+BatchLabels = Float[Image, "batch"]
+
+
+@dataclass
+class Batch:
+    x: int
+    y: Float[Tensor, "b c"]
+
 ```
 
 #pagebreak()

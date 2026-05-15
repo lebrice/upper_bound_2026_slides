@@ -1,8 +1,10 @@
+from dataclasses import dataclass
+
 import jax
 import torch.nn.functional as F
 from beartype import beartype
 from einops import rearrange
-from jaxtyping import Float, Float32, jaxtyped
+from jaxtyping import Float, Float32, Integer, jaxtyped
 from torch import Tensor, nn
 
 
@@ -132,6 +134,26 @@ class SwiGLU(nn.Module):
             two=2,
         )
         return self.down(F.silu(gate) * up)
+
+
+# Accepts floating-point 2D arrays with matching axes
+def matrix_multiply(
+    x: Float[Tensor, "A B"], y: Float[Tensor, "B C"]
+) -> Float[Tensor, "A C"]:
+    return x @ y
+
+
+Image = Float[jax.Array, "channels height width"]
+ImageBatch = Float[Image, "batch"]
+LabelsBatch = Integer[jax.Array, "batch"]
+
+# def remove_last(x: Float[torch.Tensor, "dim"]) -> Float[torch.Tensor, "dim-1"]: ...
+
+
+@dataclass
+class Batch:
+    x: ImageBatch
+    y: Float[Tensor, "b c"]
 
 
 if __name__ == "__main__":
