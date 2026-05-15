@@ -17,8 +17,8 @@
   ratio: 25/14, // aspect ratio of the slides, any valid number
   layout: "medium", // one of "small", "medium", "large"
   toc: false,
-  count: "number", // one of "dot", "dot-section", "number", or none
-  // count: "dot-section", // one of "dot", "dot-section", "number", or none
+  // count: "number", // one of "dot", "dot-section", "number", or none
+  count: "dot-section", // one of "dot", "dot-section", "number", or none
   footer: true,
   theme: "normal",
   footer-title: "Tips & tricks for efficient research with Slurm compute clusters",
@@ -75,7 +75,8 @@
 == About Mila
 
 #columns(2)[
-  *AI Research Institute founded in 2018* to bring together researchers from other institutions, with Yoshua Bengio as scientific director, followed by Hugo Larochelle.
+  *AI Research Institute founded in 2018* to bring together researchers from local institutions, with Yoshua Bengio as scientific director,
+   and now Hugo Larochelle.
 
   #v(0.5em)
   #align(center)[
@@ -83,7 +84,9 @@
     #image("images/slide12_pic04.jpg", width: 90%)
     // todo: image of Hugo Larochelle
     #colbreak()
-    / todo: Photo of Hugo Larochelle
+    #image("images/portrait-of-hugo-larochelle.png.webp", width: 90%)
+    //  /
+    // / todo: Photo of Hugo Larochelle
     ]
   ]
   #colbreak()
@@ -94,15 +97,19 @@
     stroke: none,
     align: (right, left),
     inset: (x: 6pt, y: 4pt),
-    [*159*], [Professors],
-    [*1154*], [Students (mostly PhD)],
+    [*165*], [Professors],
+    // Note about students:
+    // 411 are Master's students (MSc)
+    // 611 are PhD students
+    // 193 are Professional Master's students (Maîtrise professionnelle)
+    [*1358*], [Students],
     [*185*], [Employees
       - Applied ML Research
       - AI4Humanity
       - Admin / HR / Staff
       - IT support, soft. dev. and HPC
     ],
-    [*145*], [Industry Partners],
+    [*176*], [Industry Partners],
     [*41*], [Startups founded by Mila researchers],
   )
 ]
@@ -117,12 +124,12 @@
 *About Me*:
 Fabrice Normandin, Research #strike([Engineer])  Scientist 🎉
 - Mila student turned staff (\~4 years ago).
-- IDT Office Hours, helped 300+ researchers with wide range of issues (Optimizing PyTorch / Jax code, use Slurm effectively, write better code, etc.)
+- Office Hours, helped 200+ researchers (Optimize PyTorch/Jax code, Effective Slurm, scale up jobs, ...)
 - Research background: GANs --> Continual Learning --> Deep RL / a bit of LLMs
 - Current Goal: Build a very efficient ML research setup (à-la AutoResearch + Slurm) //for (myself and) Mila students!
 
 
-This talk is very biased by my background and experience!
+This talk is *very biased* by my background and experience!
 
 Please share your own tips and tricks in the Q&A!
 
@@ -167,26 +174,45 @@ Please share your own tips and tricks in the Q&A!
 
 
 
-== Context: Canadian Compute Clusters <clusters>
+== Context: Current Canadian Compute Clusters <clusters>
+
+
+#let mila(name)  = (table.cell(fill: gray, text(fill: white, name)))
+#let drac(name)  = (table.cell(fill: blue, text(fill: white, name)))
+#let paice(name) = (table.cell(fill: yellow, name))
+
 
 #table(
   stroke: 1pt,
-  columns: 8,
-  align: (auto, center, right, right, right, right, auto, auto),
-  [Cluster],    [#text([CPU/GPU Nodes], size:0.7em)],[#underline("CPUs")], [GPUs],              [#underline("H100-eq.")],[Storage],[Internet?], [Full Node?],
-  [Mila],       [12 / 190],     [11k],    [992 (mixed)],       [\~500],   [2 PB],   [*Yes*], [No],
-  [Rorqual],    [686 / 93],     [138k],   [372 H100],          [372],     [*69 PB*],  [No], [No],
-  [Fir],        [872 / 160],    [175k],   [640 H100],          [640],     [51 PB],  [*Yes*], [No],
-  [Nibi],       [710 / 42],     [141k],   [288 H100],          [288],     [25 PB],  [*Yes*], [No],
-  [Tamia],      [8 / 65],       [4k],     [212 H100 + 96 H200],[\~315],   [? PB],   [No], [Yes],
-  [Killarney],  [0 / 178],      [11k],    [672 L40S + 80 H100],[\~652],   [2 PB],   [Yes?], [No],
-  [Vulcan],     [0 / *252*],    [16k],    [1008 L40S],         [*\~858*],   [5 PB],   [No], [No],
-  [Trillium],   [*1224* / 63],  [*241k*], [640 H100],         [640],     [29 PB],   [No], [Yes/No],
+  columns: 6,
+  align: (auto, center, right, right, right, auto, auto),
+  [Cluster],    [#underline("CPUs")], [GPU types], [#underline("H100 GPU-eq.")],[Storage],[Internet?],
+  [#mila([Mila])],       [11k],    [A100, L40S, H100],    [\~500],   [2 PB],   [*Yes*],
+  [#drac([Narval])],    [83k],     [A100],     [\~209],     [41 PB],  [No],
+  [#drac([Rorqual])],    [138k],   [H100],     [372],     [*69 PB*], [No],
+  [#drac([Fir])],        [175k],   [H100],     [640],     [51 PB],   [*Yes*],
+  [#drac([Nibi])],       [141k],   [H100],     [288],     [25 PB],   [*Yes*],
+  [#drac([Trillium])],   [*241k*], [H100],     [640],     [29 PB],   [No],
+  [#paice([Tamia])],      [4k],     [H100, H200],[\~315],   [.7 PB], [No],
+  [#paice([Killarney])],  [11k],    [L40S, H100],[\~652],   [2 PB],  [Yes?],
+  [#paice([Vulcan])],     [16k],    [L40S],     [*\~858*], [5 PB],   [No],
 )
 
-- Mila cluster has preemptible long jobs and limited non-preemptible short jobs.
+// - Mila cluster has preemptible long jobs and limited non-preemptible short jobs.
 
 = Connecting to Compute Clusters
+
+== Context
+
+/ todo: Add an image of struggling researcher.
+
+
+*Outline*
+
+1. milatools
+2. mila code
+3. SSH config entries
+4. Typical researcher workflow at Mila
 
 == milatools <milatools>
 
@@ -249,25 +275,54 @@ Host mila-cpu
 4. Same loop on other clusters: `--cluster=<cluster>`
 
 
+
+
+
+
+
+
+
+
+
+
 = Python Environment Management with uv
 
-== uv <uv>
+== Python Environments Are Messy!
 
-*A game-changer for Python projects*
+/ todo : Add an image of a messy python ecosystem, difficult to manage dependencies, Conda not being allowed on DRAC, Containers being hard to use, etc.
 
-Core commands:
+* Section Outline *
+
+1. Why uv ?
+2. uv + PyTorch
+3. uv on DRAC clusters
+4. Example: uv + Flash-Attention
+
+== Why uv? <uv>
+#columns(2)[
+#align(center)[
+#image("images/uv.png")
+]
+#colbreak()
+
+
+*A game-changer for Python projects!*
+
+// Core commands:
 - `uv init`
-- `uv add/remove <package>`
+- `uv add / uv remove`
 - `uv sync`
-- `uv run <command>` — syncs + activates + runs
+- `uv run <command>`
 
-Avoid: `uv pip` / `uv venv` (no dependency tracking)
+
 
 Useful flags:
 - `--offline` (see #ref(<uv_on_drac>, supplement: "UV + DRAC"))
 - `--directory` (see #ref(<code_checkpointing>))
 
-*vs. Apptainer / Singularity?* For most Python-only workflows, uv is _dramatically_ simpler: no image build step, no `--bind` mount juggling, no need to rebuild for a one-line dep change. Containers still win when you need system libraries or non-Python toolchains — but reach for them only when uv isn't enough.
+Tip: avoid `uv pip` / `uv venv`
+
+]
 
 == uv + PyTorch / CUDA dependencies
 
@@ -313,11 +368,11 @@ Dependency groups for different CUDA versions:
   *But wait, can I use this on my cluster?*
 ]
 
-== Using uv on DRAC Clusters <uv_on_drac>
+== 3/4 Using uv on DRAC Clusters <uv_on_drac>
 
 Disclaimer : DRAC does *not* _currently_ support using uv on their clusters.
 
-Tip: Use the DRAC wheelhouse by default; PyPI only as needed:
+Tip: Use DRAC wheelhouse by default; PyPI only as needed:
 
 #columns(2)[
 
@@ -390,10 +445,10 @@ flash-attn = { index = "drac-gentoo2023-generic" }
 
 #pagebreak()
 
-== Tip: UV + Flash-attn
+== 4/4 Tip: UV + Flash-attn
 
-Flash-Attention pain points:
-- Pre-built wheels not always available
+// Flash-Attention pain points:
+// - Pre-built wheels not always available
 - Building from source = 100s of threads, very slow (*don't do this on login nodes!*)
 
 *Solution \#1*: Prebuilt wheel from DRAC wheelhouse (DRAC only)
@@ -433,16 +488,43 @@ TORCH_CUDA_ARCH_LIST = "9.0"
 
 = Slurm Tips and Tricks
 
+== Slurm Tips and Tricks
+
+Your project is setup properly!
+*You want to run some experiments!*
+
+But _How_?
+
+
+* Section Outline *
+
+1. Slurm Basics
+2. `srun` is all you need!
+3. Example: Easy Job Packing with `srun`
+4. Easy job submission
+5. Use Job Dependencies to prevent waste
+6. Job Chunking: Get scheduled faster
+7. Use a Flexible Job Layout
+8. Checkpointing is a must!
+9. Graceful Preemption
+10. Code Checkpointing
+
+
 == Slurm Basics
 
 - *`sbatch`* `--ntasks=4 --gpus=4 --cpus-per-task=16 --mem=32G --time=03:00:00 job.sh`
-  - Submits a batch job: requests resources for _*tasks*_, runs `job.sh`
+  - batch job: requests resources for _*tasks*_
 - *`salloc`* `--ntasks=4 --gpus=4 --cpus-per-task=16 --mem=32G --time=03:00:00`
-  - Like sbatch, but drops you in an interactive shell on the node
+  - Interactive job, gives you a terminal on the compute node
 
 - *`srun`* `python main.py`
-  - Runs a command once per _*task*_ inside a job
+  - Runs a _command_ once per _*task*_ inside a job
   - (Avoid using it to create jobs)
+
+// #v()
+#align(end + horizon)[
+⏩ I barely ever use `srun`, what's so great about it?
+]
 
 == `srun` is all you need!
 
@@ -450,17 +532,17 @@ TORCH_CUDA_ARCH_LIST = "9.0"
 
 There is _often no need_ for `torchrun` / `accelerate launch` / etc!
 
-- Launches on all the nodes, with the right env vars, partitions CPUs/GPUs/memory across tasks
+// - Launches on all the nodes, with the right env vars, partitions CPUs/GPUs/memory across tasks
 
+/ todo : Diagram of srun env vars / srun code example.
 
+// *Fancy tips*:
+// - `--multi-prog`: allows different commands for each task (sweeps, coordinator/worker)
 
-*Fancy tips*:
-- `--multi-prog`: allows different commands for each task (sweeps, coordinator/worker)
-
-- Super Niche: heterogeneous resources per task!
-    ```bash
-    srun -n1 -c8 --mem-per-cpu=2gb server : -n16 --mem-per-cpu=1gb client
-    ```
+// - Super Niche: heterogeneous resources per task!
+//     ```bash
+//     srun -n1 -c8 --mem-per-cpu=2gb server : -n16 --mem-per-cpu=1gb client
+//     ```
 
 
 
@@ -484,7 +566,6 @@ Different commands per task → `srun --multi-prog`:
   ```
 
 (See #link("https://slurm.schedmd.com/srun.html#OPT_multi-prog", [`srun` documentation]))
-
 
 
 == Easy job submission <job_submission>
@@ -694,15 +775,17 @@ srun uv run --directory $SLURM_TMPDIR/my_project "$@"
 
 == Einops <einops>
 
-*Problem*: `reshape` / `permute` / `view` chains are cryptic and error-prone
+// *Problem*: `reshape` / `permute` / `view` chains are cryptic and error-prone
 
-*Solution*: `einops` — tensor ops as named axes
+// *Solution*: `einops` — tensor ops as named axes
 
-Example: patchifying an image batch (ViT)
+// Example: patchifying an image batch (ViT)
 
 #set text(size: 9pt)
+
 #columns(2)[
-  Without einops:
+
+  // Without einops:
   ```python
   import torch
 
@@ -715,7 +798,7 @@ Example: patchifying an image batch (ViT)
   ```
   #colbreak()
 
-  With einops:
+  // With einops:
   ```python
   from einops import rearrange
 
@@ -727,6 +810,7 @@ Example: patchifying an image batch (ViT)
       )
   ```
 ]
+
 #set text(size: 11pt)
 
 #pagebreak()
@@ -749,9 +833,9 @@ from jaxtyping import Float
 from torch import Tensor
 
 # Accepts floating-point 2D arrays with matching axes
-def matrix_multiply(x: Float[Tensor, "dim1 dim2"],
-                    y: Float[Tensor, "dim2 dim3"]
-                  ) -> Float[Tensor, "dim1 dim3"]:
+def matrix_multiply(x: Float[Tensor, "A B"],
+                    y: Float[Tensor, "B C"]
+                  ) -> Float[Tensor, "A C"]:
     return x @ y
 ```
 
@@ -779,20 +863,13 @@ Annotations can reference function arguments or module attributes!
 
 ```python
 class MLP(nn.Module):
-    """Standard 2-layer MLP with ReLU activation."""
-    def __init__(self, in_dims: int, out_dims: int, hidden_dims: int = 128):
+    def __init__(self, in_dims: int, out_dims: int):
         super().__init__()
         self.in_dims = in_dims
-        self.hidden_dims = hidden_dims
         self.out_dims = out_dims
-        self.linear1 = nn.Linear(in_dims, hidden_dims)
-        self.linear2 = nn.Linear(hidden_dims, out_dims)
-        self.activation = nn.ReLU()
+        ...
 
-    @jaxtyped(typechecker=beartype)
-    def forward(
-        self, input: Float[Tensor, "b {self.in_dims}"]            # <---- (here)
-    ) -> Float[Tensor, "b {self.out_dims}"]:                      # <---- (here)
+    def forward(self, input: Float[Tensor, "b {self.in_dims}"]) -> Float[Tensor, "b {self.out_dims}"]:
         return self.linear2(self.activation(self.linear1(input)))
 ```
 #set text(size: 11pt)
