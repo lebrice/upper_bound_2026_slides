@@ -137,49 +137,28 @@ Your goal is to beat the state of the art method on problem X in your sub-field 
 
 You have a decently-working way to do things, but you are curious about best practices.
 
-// Link
-// #show ref: it => {
-//   // Filter only for links, not for citations
-//   if it.element != none {
-//     let el = it.element
-//     set text(size: 0.7em, fill: white)
-//     box(
-//       fill: blue, outset: (x: 0.0em, y: 0.2em),
-//       radius: 0.8em,  height: 0.8em, inset: (x:0.5em),
-//       //stroke: (bottom: fill-color),
-//     )[
-//       // if no supplement is passed
-//       #if el.func() == heading and it.supplement == auto {
-//         link(el.location(), el.body)
-//       } else if el.func() == heading { // if a supplement is passed
-//         link(el.location(), it.supplement.text)
-//       }
-//     ]
-//   } else {
-//     return it
-//   }
-// }
-// #set ref.box.fill(blue)
 
 #let choices(
   top_part: none,
   left_ref,
   left_title: "⏪ Go Left!",
   right_title: "Go right! ⏩",
+  left_color: blue,
   left_desc,
   right_ref,
   right_desc,
+  right_color: blue,
 ) = {
   align(horizon + center)[
     #top_part
     #columns(2)[
-      #link(left_ref, rect(fill: gray.lighten(90%), stroke: gray)[
+      #link(left_ref, rect(fill: left_color.lighten(90%), stroke: left_color)[
         #left_title
         #linebreak()
         #left_desc
       ])
       #colbreak()
-      #link(right_ref, rect(fill: gray.lighten(90%), stroke: gray)[
+      #link(right_ref, rect(fill: right_color.lighten(90%), stroke: right_color)[
         #right_title
         #linebreak()
         #right_desc
@@ -189,34 +168,14 @@ You have a decently-working way to do things, but you are curious about best pra
 }
 
 #choices(<failure_end>, [
-  It's too much trouble. Keep using your laptop.
-], <clusters>, [Find more information on this new cluster!], top_part: [You hear that new compute clusters are available for researchers!
+  It's too much trouble. Don't bother.
+], <clusters>, [Find out more about these new clusters!], left_color: gray, top_part: [You hear that new compute clusters are available for researchers!
 
   It could very well help you get your results faster!]
 )
-// #align(horizon + center)[
-//   You hear that a new compute cluster has become available!
 
-//   It could very well help you get your results faster!
-//   #columns(2)[
-//     #link(<clusters>, rect(fill: gray.lighten(90%), stroke: gray)[
-//       ⏪ Go Left!
-//       #linebreak()
-//       Don't use new compute clusters.
-//       It's just too much trouble.
-//     ]
-//     )
 
-//     #colbreak()
-
-//     #link(<clusters>, rect(fill: gray.lighten(90%), stroke: gray)[
-//       ⏩ Go Right!
-//       #linebreak()
-//       Learn more about canadian compute clusters
-//     ]
-//     )
-//   ]
-// ]
+#outline(title: "Topics")
 
 
 // What this talk *is* about:
@@ -276,7 +235,6 @@ You have a decently-working way to do things, but you are curious about best pra
 
 // = Introduction
 
-#outline()
 
 == Context: Canadian Compute Clusters <clusters>
 
@@ -321,6 +279,14 @@ You have a decently-working way to do things, but you are curious about best pra
 
 *Section Outline*
 
+// #show outline.entry: it => link(
+//   it.element.location(),
+//   // Keep just the body, dropping
+//   // the fill and the page.
+//   it.indented(it.prefix()+[#h(0.5em)], it.body()),
+// )
+// #suboutline(title: "Connecting to Compute Clusters")
+
 1. milatools
 2. mila code
 3. SSH config entries
@@ -339,7 +305,7 @@ Install: `uv tool install milatools`, or `pip install milatools`
 
 - `mila code --cluster=<cluster> [project_path] [--salloc resources]`
 
-  Works with *_any_* SSH-accessible Slurm cluster.
+  #underline([Works with *_any_* Slurm cluster!])
   1. Requests interactive job (`salloc <resources>`)
   2. Waits for job to start
   3. Opens `project_path` in VSCode via Remote-SSH
@@ -950,7 +916,9 @@ previous_job_id = int(os.environ["SLURM_JOB_DEPENDENCY"].removeprefix("afterok:"
 // == What to do?
 // You want to start a new project. How do you go about doing it?
 
-== Einops <einops>
+== Make code readable with Einops <einops>
+
+Works with PyTorch / Jax / Numpy / etc!
 
 // *Problem*: `reshape` / `permute` / `view` chains are cryptic and error-prone
 
@@ -1005,28 +973,70 @@ Docs: https://einops.rocks/.
 ⏩ Pairs beautifully with #ref(<jaxtyping>)!
 ]
 
-== Jaxtyping <jaxtyping>
 
-Shape + dtype in tensor type hints. Works with Jax / PyTorch / NumPy.
+== Make code readable and modular with TensorDict
 
 ```python
-from jaxtyping import Float, Int
+from tensordict import TensorDict
+
+data = TensorDict(
+    obs=torch.randn(128, 84),
+    action=torch.randn(128, 4),
+    reward=torch.randn(128, 1),
+    batch_size=[128],
+)
+
+data_gpu = data.to("cuda")      # all tensors move together
+sub = data_gpu[:64]              # all tensors are sliced
+stacked = torch.stack([data, data])  # works like a tensor
+```
+#align(right + horizon)[
+https://docs.pytorch.org/tensordict/stable/index.html
+]
+
+
+== Make code readable and modular with tensorclass
+
+
+```python
+from tensordict import tensorclass
+import torch
+
+@tensorclass
+class MyData:
+    x: torch.Tensor
+    y: torch.Tensor
+```
+
+#align(right + horizon)[
+https://docs.pytorch.org/tensordict/stable/reference/generated/tensordict.tensorclass.html
+]
+
+
+== Make code explicit with Jaxtyping <jaxtyping>
+
+Works with Jax / PyTorch / NumPy.
+// Shape + dtype in tensor type hints.
+
+#set text(size: 9pt)
+```python
+from jaxtyping import Float, Integer
 from torch import Tensor
 
-# Accepts floating-point 2D arrays with matching axes
-def matrix_multiply(x: Float[Tensor, "A B"], y: Float[Tensor, "B C"]) -> Float[Tensor, "A C"]:
+def matrix_multiply(
+  x: Float[Tensor, "A B"],
+  y: Float[Tensor, "B C"]
+) -> Float[Tensor, "A C"]:
     return x @ y
 
-Image = Float[jax.Array, "channels height width"]
-BatchImage = Float[Image, "batch"]
-BatchLabels = Float[Image, "batch"]
-
+Image = Float[jax.Array, "C H W"]
+Images = Float[Image, "B"] # --> Float[jax.Array, "B C H W"]
+Labels = Integer[jax.Array, "B"]
 
 @dataclass
 class Batch:
-    x: int
-    y: Float[Tensor, "b c"]
-
+    x: Images
+    y: Labels
 ```
 
 #pagebreak()
@@ -1064,86 +1074,28 @@ class MLP(nn.Module):
 ```
 #set text(size: 11pt)
 
-== Jaxtyping + einops <jaxtyping_einops>
-
-// Combining `jaxtyping` with `einops` allows you to have very explicit, strictly typed code:
-
-// #set text(size: 9pt)
-// ```python
-// from jaxtyping import Float
-// from torch import Tensor
-
-// def patchify(
-//     images: Float[Tensor, "b c h w"],
-//     p: int,
-// ) -> Float[Tensor, " b (h/{p})*(w/{p}) ({p}*{p}*c)"]:
-//     return rearrange(images, "b c (hp p1) (wp p2) -> b (hp wp) (p1 p2 c)", p1=p, p2=p)
-// ```
-// #set text(size: 11pt)
-
-// #pagebreak()
-
-#set text(size: 9pt)
-```python
-class SwiGLU(nn.Module):
-    """SwiGLU feed-forward block: down(silu(gate) * up).
-    Used in LLaMA, PaLM, Gemma — replaces the standard 2-layer ReLU MLP.
-    """
-    def __init__(self, d_model: int, d_ff: int):
-        super().__init__()
-        self.d_model = d_model
-        self.d_ff = d_ff
-        # Fused gate + up: one matmul instead of two, split with einops.
-        self.gate_up = nn.Linear(d_model, 2 * d_ff, bias=False)
-        self.down = nn.Linear(d_ff, d_model, bias=False)
-
-    @jaxtyped(typechecker=beartype)
-    def forward(
-      self, x: Float[Tensor, "b n {self.d_model}"]
-    ) -> Float[Tensor, "b n {self.d_model}"]:
-        gate, up = rearrange(
-            self.gate_up(x),  "b n (two d_ff) -> two b n d_ff", two=2,
-        )
-        return self.down(F.silu(gate) * up)
-```
-#set text(size: 11pt)
-
-== TensorDict
-
-```python
-from tensordict import TensorDict
-
-data = TensorDict(
-    obs=torch.randn(128, 84),
-    action=torch.randn(128, 4),
-    reward=torch.randn(128, 1),
-    batch_size=[128],
-)
-
-data_gpu = data.to("cuda")      # all tensors move together
-sub = data_gpu[:64]              # all tensors are sliced
-stacked = torch.stack([data, data])  # works like a tensor
-```
-#align(right + horizon)[
-https://docs.pytorch.org/tensordict/stable/index.html
-]
-
-== tensorclass
-
-
+== Bringing it all together!
 ```python
 from tensordict import tensorclass
-import torch
+from jaxtyping import Float, Integer
+from torch import Tensor
+
+Image = Float[Tensor, "c h w"]
+Images = Float[Image, "b"] # --> Float[Tensor, "b c h w"]
+Labels = Integer[Tensor, "b"]
 
 @tensorclass
-class MyData:
-    X: torch.Tensor
-    y: torch.Tensor
+class Batch:
+    x: Images
+    y: Labels
+
+
+def patchify(images: Float[Tensor, "b c h w"], p: int,
+) -> Float[Tensor, " b (h/{p})*(w/{p}) ({p}*{p}*c)"]:
+    return rearrange(images, "b c (hp p1) (wp p2) -> b (hp wp) (p1 p2 c)", p1=p, p2=p)
 ```
 
-#align(right + horizon)[
-https://docs.pytorch.org/tensordict/stable/reference/generated/tensordict.tensorclass.html
-]
+
 == Config / Argument Parsing
 
 Recommendations, from simplest to most complex
@@ -1243,7 +1195,6 @@ Or in code: `wandb.init(mode="offline")`.
 - `WANDB_DIR=$SLURM_TMPDIR` → run files on fast local storage
 
 
-
 ⏩ Next up: Testing for ML Code!
 
 
@@ -1251,17 +1202,42 @@ Or in code: `wandb.init(mode="offline")`.
 
 == Why/How to do testing for ML code?
 
-Testing is the *safety net* that allows you to experiment freely!
+Testing is the *safety net* that allows you to experiment freely.
 
-You already _do_ testing!
+You already _do_ testing! Just not in an efficient way!
+
 - Run small experiments to check that things are working.
 
+- Use successively more difficult (and compute-intensive) problems:
+  - Vision: MNIST → CIFAR10 → CIFAR100 → ImageNet → ...
+  - RL: CartPole → Atari → Craftax → ...
+  - NLP: WikiText → ... → C4 → The Pile → ...
 
 
+== Simple Testing for ML
+
+From a description:
+#quote(["My model should be able to reach 95% accuracy on MNIST in 3 epochs of training, in less than 10 seconds."])
+
+
+#align(horizon)[
+To an implementation:
+```python
+@pytest.mark.timeout(10)  # Fails if test takes more than 10 seconds.
+def test_train_mnist():
+    train_dataset, test_dataset = MNIST(train=True), MNIST(train=False)
+    model = make_model(input_size=28, num_classes=10, seed=42)
+    trained_model = train_model(model, train_dataset, epochs=3)
+    accuracy = evaluate(trained_model, test_dataset)
+    assert accuracy > 0.95
+```
+]
 
 == Reproducibility testing <tensor-regression>
 
-#link("https://github.com/mila-iqia/tensor_regression", "github.com/mila-iqia/tensor_regression")
+// From a description:
+#quote(["Given the same seed, my model should always have the same initial weights and state."])
+
 
 ```python
 import pytest
@@ -1272,6 +1248,9 @@ def test_initialization_is_reproducible(seed: int, tensor_regression):
     model = make_model(seed=seed)
     tensor_regression.check(model.state_dict())
 ```
+
+
+*#link("https://github.com/mila-iqia/tensor_regression", "github.com/mila-iqia/tensor_regression")*
 
 Based on #link("https://github.com/ESSS/pytest-regressions", "pytest-regressions")
 - Saves tensor stats (shape, dtype, min/max/mean) in a git-committed `.yaml`
@@ -1330,7 +1309,7 @@ def test_custom_op_forward_backward(tensor_regression, batch_size: int):
 
 *Step 2*: Iterative debug/optimize — instantly know if you break fwd/bwd!
 
-== (!!) GitHub CI + Slurm Clusters <github_ci_slurm>
+== (!!) Run tests with GitHub CI + Slurm Clusters <github_ci_slurm>
 
 // (Possibly unique, never seen this done before).
 
@@ -1363,7 +1342,7 @@ def test_custom_op_forward_backward(tensor_regression, batch_size: int):
 )
 #suboutline(title: "Debugging & Profiling")
 
-== Debugging Multi-GPU Jobs
+== Debugging Multi-GPU Jobs with VSCode
 
 (PyTorch) VSCode Debugger + `torchrun`:
 
@@ -1451,6 +1430,7 @@ VSCode auto-forwards the port → localhost:6006 (with #ref(<mila-code>))
 
 
 #pagebreak()
+== Live Demo : Debugging & Profiling with VSCode
 
 / DEMO :
 
@@ -1609,34 +1589,6 @@ GPU stays busy — next batch always ready.
 
 // #pagebreak()
 
-== Tip: Use CUDA Streams + non_blocking=True!
-
-Enables maximal overlap without forcing synchronization at each step!
-
-#set text(size: 9pt)
-```python
-dataloader = DataLoader(
-    dataset,
-    batch_size=64,
-    num_workers=len(os.sched_getaffinity(0)), # as many workers as allocated CPUs
-    pin_memory=True,
-    # prefetch_factor=2, # Helps if there is variance in load times.
-)
-data_transfer_stream = torch.cuda.Stream()
-
-for batch in dataloader:
-    # Use cuda streams to overlap data transfer and training step without a sync
-    with data_transfer_stream:
-        batch = batch.to(device, non_blocking=True)
-    # Training step on the main stream
-    training_step(batch)
-```
-
-#set text(size: 11pt)
-
-Excellent guide (*must read*!): https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html
-
-*Still GPU-starved after this?* Look at #link("https://github.com/libffcv/ffcv", "FFCV") or #link("https://developer.nvidia.com/dali", "NVIDIA DALI") (input processing on the GPU)
 
 #pagebreak()
 
@@ -1726,6 +1678,75 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK   # <-- Better!
 
 // == Job Packing
 
+== Ongoing work: cluv <cluv>
+
+From *Cl*~uster + *UV*: CLI to dispatch jobs and sync uv projects across Slurm clusters.
+
+- Setup: `cluv login`, `cluv sync`, `cluv status`
+- Run: `cluv run <cluster> <command>`
+- Submit: `cluv submit <cluster> <job_script> [args]`
+  - use `first` instead of `<cluster>` to dispatch to all clustes and keep first running job
+
+// #image(https://docs.pytorch.org/tutorials/_static/img/profiler_rocm_chrome_trace_view.png)
+
+Learn more at https://github.com/mila-iqia/cluv
+
+/ live demo :
+  ```bash
+  cluv submit first job.sh -- python main.py
+  ```
+
+
+= Thank You!
+
+
+
+== 🎉 Success! 🎉 <success_end>
+
+You were able to submit all the jobs required for your experiments!
+
+- Your jobs were compact, short, efficient
+- Your code was clean, nicely-typed, well-tested
+- You feel confident, you own your code, you already have ideas for what to do next!
+
+You can expect good results at the next conference cycle! 😉
+🎉
+
+== 😢 Oh No! <failure_end>
+
+Unfortunately, your jobs did not run fast enough.
+Your results were inconclusive or unreproducible.
+
+You are not sure what went wrong, but you really want to try better next time.
+
+
+// Please let us know if you have any questions or comments!
+
+// = Q&A
+= Extras (overflow slides)
+
+
+== Use Job Dependencies to prevent waste <job_dependencies>
+
+*Problem*: Some jobs fail → downstream jobs waste resources
+
+/ todo: Add a Simple DAG diagram to illustrate job dependencies?
+
+
+
+Pairs nicely with #ref(<job_submission>):
+
+```bash
+# Hyper-parameter sweep
+jobid_a=$(sbatch --parsable job.sh --lr=0.01)
+jobid_b=$(sbatch --parsable job.sh --lr=0.02)
+jobid_c=$(sbatch --parsable job.sh --lr=0.03)
+
+# Train once with best hyper-parameters, *only if all runs succeed*!
+sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c \
+        job.sh --lr=best
+```
+
 
 == Tip: Mixing PyTorch and Jax
 
@@ -1776,25 +1797,83 @@ Advantages over rank-0-only:
 See: #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [PyTorch Distributed Checkpointing tutorial]) + the *TorchTitan* talk at Upper Bound 2026!
 
 
-= Ongoing work and open problems
 
-== cluv <cluv>
+== Combining Jaxtyping + einops <jaxtyping_einops>
 
-From *Cl*~uster + *UV*: CLI to dispatch jobs and sync uv projects across Slurm clusters.
+// Combining `jaxtyping` with `einops` allows you to have very explicit, strictly typed code:
 
-- Setup: `cluv login`, `cluv sync`, `cluv status`
-- Run: `cluv run <cluster> <command>`
-- Submit: `cluv submit <cluster> <job_script> [args]`
-  - use `first` instead of `<cluster>` to dispatch to all clustes and keep first running job
+// #set text(size: 9pt)
+// ```python
+// from jaxtyping import Float
+// from torch import Tensor
 
-// #image(https://docs.pytorch.org/tutorials/_static/img/profiler_rocm_chrome_trace_view.png)
+// def patchify(
+//     images: Float[Tensor, "b c h w"],
+//     p: int,
+// ) -> Float[Tensor, " b (h/{p})*(w/{p}) ({p}*{p}*c)"]:
+//     return rearrange(images, "b c (hp p1) (wp p2) -> b (hp wp) (p1 p2 c)", p1=p, p2=p)
+// ```
+// #set text(size: 11pt)
 
-Learn more at https://github.com/mila-iqia/cluv
+// #pagebreak()
 
-/ live demo :
-  ```bash
-  cluv submit first job.sh -- python --version
-  ```
+#set text(size: 9pt)
+```python
+class SwiGLU(nn.Module):
+    """SwiGLU feed-forward block: down(silu(gate) * up).
+    Used in LLaMA, PaLM, Gemma — replaces the standard 2-layer ReLU MLP.
+    """
+    def __init__(self, d_model: int, d_ff: int):
+        super().__init__()
+        self.d_model = d_model
+        self.d_ff = d_ff
+        # Fused gate + up: one matmul instead of two, split with einops.
+        self.gate_up = nn.Linear(d_model, 2 * d_ff, bias=False)
+        self.down = nn.Linear(d_ff, d_model, bias=False)
+
+    @jaxtyped(typechecker=beartype)
+    def forward(
+      self, x: Float[Tensor, "b n {self.d_model}"]
+    ) -> Float[Tensor, "b n {self.d_model}"]:
+        gate, up = rearrange(
+            self.gate_up(x),  "b n (two d_ff) -> two b n d_ff", two=2,
+        )
+        return self.down(F.silu(gate) * up)
+```
+#set text(size: 11pt)
+
+
+
+== Tip: Use CUDA Streams + non_blocking=True!
+
+Enables maximal overlap without forcing synchronization at each step!
+
+#set text(size: 9pt)
+```python
+dataloader = DataLoader(
+    dataset,
+    batch_size=64,
+    num_workers=len(os.sched_getaffinity(0)), # as many workers as allocated CPUs
+    pin_memory=True,
+    # prefetch_factor=2, # Helps if there is variance in load times.
+)
+data_transfer_stream = torch.cuda.Stream()
+
+for batch in dataloader:
+    # Use cuda streams to overlap data transfer and training step without a sync
+    with data_transfer_stream:
+        batch = batch.to(device, non_blocking=True)
+    # Training step on the main stream
+    training_step(batch)
+```
+
+#set text(size: 11pt)
+
+Excellent guide (*must read*!): https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html
+
+*Still GPU-starved after this?* Look at #link("https://github.com/libffcv/ffcv", "FFCV") or #link("https://developer.nvidia.com/dali", "NVIDIA DALI") (input processing on the GPU)
+
+
 
 == Research Template Repository <research_template>
 
@@ -1829,44 +1908,3 @@ Research Template Repository: https://mila-iqia.github.io/ResearchTemplate/
 *Why Slurm?* Clean, sandboxed interface — agent inherits resource management and isolation for free.
 
 WIP at Mila — stay tuned!
-= Thank you!
-== Thank you!
-
-Please let us know if you have any questions or comments!
-
-// = Q&A
-= Extras
-
-
-== Use Job Dependencies to prevent waste <job_dependencies>
-
-*Problem*: Some jobs fail → downstream jobs waste resources
-
-/ todo: Add a Simple DAG diagram to illustrate job dependencies?
-
-
-
-Pairs nicely with #ref(<job_submission>):
-
-```bash
-# Hyper-parameter sweep
-jobid_a=$(sbatch --parsable job.sh --lr=0.01)
-jobid_b=$(sbatch --parsable job.sh --lr=0.02)
-jobid_c=$(sbatch --parsable job.sh --lr=0.03)
-
-# Train once with best hyper-parameters, *only if all runs succeed*!
-sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c \
-        job.sh --lr=best
-```
-
-
-== 🎉 Success! 🎉 <success_end>
-
-You were able to submit all the jobs required for your experiment.
-
-Your article looks good, and you are expecting good results at the next conference cycle!
-🎉
-
-== 😢 Oh No! <failure_end>
-
-Unfortunately, your jobs did not run fast enough. Your results are inconclusive. You are not sure what went wrong, but you really want to try better next time.
