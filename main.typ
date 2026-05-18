@@ -1,7 +1,6 @@
 // #import "../lib.typ": *
 #import "./diatypst.typ": *
 #import "@preview/fletcher:0.5.8" as fletcher: diagram, node, edge
-
 // Could be nice to annotate code blocks:
 // #import "@preview/codly:1.3.0": *
 // #import "@preview/codly-languages:0.1.1": *
@@ -17,7 +16,7 @@
   ratio: 25/14, // aspect ratio of the slides, any valid number
   layout: "medium", // one of "small", "medium", "large"
   toc: false,
-  count: "number", // one of "dot", "dot-section", "number", or none
+  count: "dot-section", // one of "dot", "dot-section", "number", or none
   // count: "dot-section", // one of "dot", "dot-section", "number", or none
   footer: true,
   theme: "normal",
@@ -26,9 +25,10 @@
   // theme: "full", // one of "normal", "full"
   // ... see the docs for more options
 )
+#set heading(numbering: "1.1")
+#import "@preview/suboutline:0.3.0": *
 
 == About this presentation
-
 #quote([
   Goal: Share some useful tips and tricks to increase your productivity and reduce friction in your research workflow with Slurm clusters.
 ])
@@ -82,11 +82,8 @@
   #align(center)[
     #columns(2)[
     #image("images/slide12_pic04.jpg", width: 90%)
-    // todo: image of Hugo Larochelle
     #colbreak()
     #image("images/portrait-of-hugo-larochelle.png.webp", width: 90%)
-    //  /
-    // / todo: Photo of Hugo Larochelle
     ]
   ]
   #colbreak()
@@ -124,14 +121,15 @@
 *About Me*:
 Fabrice Normandin, Research #strike([Engineer])  Scientist 🎉
 - Mila student turned staff (\~4 years ago).
-- Office Hours, helped 200+ researchers (Optimize PyTorch/Jax code, Effective Slurm, scale up jobs, ...)
+- Office Hours, helped 200+ researchers (Optimize PyTorch/Jax code, use Slurm, scale up jobs, ...)
 - Research background: GANs --> Continual Learning --> Deep RL / a bit of LLMs
 - Current Goal: Build a very efficient ML research setup (à-la AutoResearch + Slurm) //for (myself and) Mila students!
 
+#v(1cm)
 
 This talk is *very biased* by my background and experience!
 
-Please share your own tips and tricks in the Q&A!
+I _will_ miss things. Please share your own tips and tricks in the Q&A!
 
 // == What is a Compute cluster, really? <switches>
 
@@ -174,7 +172,7 @@ Please share your own tips and tricks in the Q&A!
 
 
 
-== Context: Current Canadian Compute Clusters <clusters>
+== Context: Canadian Compute Clusters <clusters>
 
 
 #let mila(name)  = (table.cell(fill: gray, text(fill: white, name)))
@@ -198,16 +196,18 @@ Please share your own tips and tricks in the Q&A!
   [#paice([Vulcan])],     [16k],    [L40S],     [*\~858*], [5 PB],   [No],
 )
 
+- _Our job is to help researchers use the compute they have access to, this compute efficiently!_
+
 // - Mila cluster has preemptible long jobs and limited non-preemptible short jobs.
 
 = Connecting to Compute Clusters
 
 == Context
 
-/ todo: Add an image of struggling researcher.
+/ TODO: Add an image of struggling researcher.
 
 
-*Outline*
+*Section Outline*
 
 1. milatools
 2. mila code
@@ -218,7 +218,7 @@ Please share your own tips and tricks in the Q&A!
 
 Small Python package by Mila's IDT team.
 
-Install: `uv tool install milatools`
+Install: `uv tool install milatools`, or `pip install milatools`
 
 - `mila init`:
   - SSH config setup
@@ -243,7 +243,7 @@ Install: `uv tool install milatools`
 
 / live demo: `mila code repos/upper_bound_2026_slides --cluster=mila --salloc --gpus=4 --mem=16G --time=06:00:00`
 
-== Useful SSH Config Entries: mila-cpu <mila-cpu>
+== Useful SSH Config Entries <mila-cpu>
 
 `mila init` creates the `mila-cpu` SSH host. `ssh mila-cpu`:
 1. Connects to Mila
@@ -278,23 +278,18 @@ Host mila-cpu
 
 
 
-
-
-
-
-
-
-
-= Python Environment Management with uv
+= Managing Python Projects (with uv)
+// #suboutline(title: "Managing Python Projects")
 
 == Python Environments Are Messy!
 
 / todo : Add an image of a messy python ecosystem, difficult to manage dependencies, Conda not being allowed on DRAC, Containers being hard to use, etc.
 
-* Section Outline *
+
+* In this section: *
 
 1. Why uv ?
-2. uv + PyTorch
+2. Example: uv + PyTorch
 3. uv on DRAC clusters
 4. Example: uv + Flash-Attention
 
@@ -322,9 +317,10 @@ Useful flags:
 
 Tip: avoid `uv pip` / `uv venv`
 
+/ live demo! : `uv add torch`
 ]
 
-== uv + PyTorch / CUDA dependencies
+== Example: uv + PyTorch
 
 Dependency groups for different CUDA versions:
 
@@ -368,7 +364,7 @@ Dependency groups for different CUDA versions:
   *But wait, can I use this on my cluster?*
 ]
 
-== 3/4 Using uv on DRAC Clusters <uv_on_drac>
+== Using uv on DRAC Clusters <uv_on_drac>
 
 Disclaimer : DRAC does *not* _currently_ support using uv on their clusters.
 
@@ -428,7 +424,7 @@ Tip: Use DRAC wheelhouse by default; PyPI only as needed:
 // )
 
 
-Alternatively, use the DRAC wheelhouse when convenient (for example, `flash-attn`)
+Other approach: use the DRAC wheelhouse when convenient (for example, `flash-attn`)
 
 ```toml
 # pyproject.toml
@@ -445,7 +441,7 @@ flash-attn = { index = "drac-gentoo2023-generic" }
 
 #pagebreak()
 
-== 4/4 Tip: UV + Flash-attn
+== Tip: UV + Flash-attn
 
 // Flash-Attention pain points:
 // - Pre-built wheels not always available
@@ -486,27 +482,45 @@ TORCH_CUDA_ARCH_LIST = "9.0"
 
 ⏩ Next up: Slurm Tips and Tricks!
 
+==
+
+#align(horizon + center)[
+Your project is now setup properly!
+
+*You want to run some experiments!*
+]
+
 = Slurm Tips and Tricks
 
-== Slurm Tips and Tricks
+#show outline.entry: it => link(
+  it.element.location(),
+  // Keep just the body, dropping
+  // the fill and the page.
+  it.indented(it.prefix(), it.body()),
+)
+#suboutline(title: "Slurm Tips and Tricks - Section Outline")
 
-Your project is setup properly!
-*You want to run some experiments!*
+// == Context
+// == Slurm Tips and Tricks
 
 
-* Slurm Tips and Tricks *
+// Your project is setup properly!
+// *You want to run some experiments!*
 
-1. Slurm Basics
-  - Reuse your job scripts
-  - Code Checkpointing
-  - Checkpointing is a must!
-2. `srun` is all you need!
-  - Easy Job Packing with `srun`
-3. Faster Results // Short, Flexible jobs always win!
-  - Graceful Preemption
-  - Use Job Dependencies to prevent waste
-  - Job Chunking: Get scheduled faster
-  - Use a Flexible Job Layout
+// * In this section: *
+
+// 1. Slurm Basics
+//   - Reuse your job scripts!
+//   - Checkpointing is a must!
+//   - Graceful Preemption
+//   - Code Checkpointing
+// 2. `srun` is all you need!
+//   - Easy Job Packing with `srun`
+// 3. Faster Results // Short, Flexible jobs always win!
+//   // - Use Job Dependencies to prevent waste
+//   - Job Chunking: Short jobs always win!
+//   - Flexible jobs always win!
+//   - Use a Flexible Job Layout
 
 
 == Slurm Basics
@@ -525,9 +539,12 @@ Your project is setup properly!
 ⏩ I barely ever use `srun`, what's so great about it?
 ]
 
-== Easy job submission (Reuse your job scripts!) <job_submission>
+#pagebreak()
+=== Reuse your job scripts <job_submission>
 
-Editing the same job.sh is tedious. Using a job script per experiment → explosion of scripts. *Solution:*
+Editing the same job.sh is tedious. Using a job script per experiment → explosion of scripts.
+
+*Solution:*
 
 //  Generic `job.sh` + forward `"$@"`
 
@@ -662,27 +679,6 @@ python train.py --seed=1 --lr=0.001 --batch-size=128
 // ]
 
 
-== Use Job Dependencies to prevent waste <job_dependencies>
-
-*Problem*: Some jobs fail → downstream jobs waste resources
-
-/ todo: Add a Simple DAG diagram to illustrate job dependencies?
-
-
-
-Pairs nicely with #ref(<job_submission>):
-
-```bash
-# Hyper-parameter sweep
-jobid_a=$(sbatch --parsable job.sh --lr=0.01)
-jobid_b=$(sbatch --parsable job.sh --lr=0.02)
-jobid_c=$(sbatch --parsable job.sh --lr=0.03)
-
-# Train once with best hyper-parameters, *only if all runs succeed*!
-sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c \
-        job.sh --lr=best
-```
-
 == Job Chunking: Short Jobs always win! <job_chunking>
 
 
@@ -726,8 +722,8 @@ And in Python:
 previous_job_id = int(os.environ["SLURM_JOB_DEPENDENCY"].removeprefix("afterok:"))
 ```
 
-== Flexible Jobs always win! Use a Flexible Job Layout <flexible_job_layout>
-
+== Flexible Jobs always win! <flexible_job_layout>
+// Use a Flexible Job Layout
 Large jobs can take a long time to schedule!
 
 ➡️ Flexible job layout → faster scheduling!
@@ -1677,3 +1673,26 @@ WIP at Mila — stay tuned!
 Please let us know if you have any questions or comments!
 
 // = Q&A
+= Extras
+
+
+== Use Job Dependencies to prevent waste <job_dependencies>
+
+*Problem*: Some jobs fail → downstream jobs waste resources
+
+/ todo: Add a Simple DAG diagram to illustrate job dependencies?
+
+
+
+Pairs nicely with #ref(<job_submission>):
+
+```bash
+# Hyper-parameter sweep
+jobid_a=$(sbatch --parsable job.sh --lr=0.01)
+jobid_b=$(sbatch --parsable job.sh --lr=0.02)
+jobid_c=$(sbatch --parsable job.sh --lr=0.03)
+
+# Train once with best hyper-parameters, *only if all runs succeed*!
+sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c \
+        job.sh --lr=best
+```
