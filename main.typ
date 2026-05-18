@@ -31,49 +31,7 @@
 
 
 
-== About this presentation
-#quote([
-  Goal: Share some useful tips and tricks to increase your productivity and reduce friction in your research workflow with Slurm clusters.
-])
 
-- Organized to roughly follow a "_typical_" ML researcher's workflow
-- Sit back, relax, feel free to ask questions and share your input.
-
-#columns(2,
-  [
-    #align(center)[
-    Slides + Code
-    #linebreak()
-    #image("images/github_qr_code.png", width:30%)
-    #link("https://github.com/lebrice/upper_bound_2026_slides", "github.com/lebrice/upper_bound_2026_slides")
-    ]
-    #colbreak()
-    #align(center)[
-    Live Q&A with Slido
-    #linebreak()
-    #image("images/QR_Code_Slido.png", width:30%)
-    #link("https://app.sli.do/event/9c6SVnBwxftYKfCzfihNts", "app.sli.do/event/9c6SVnBwxftYKfCzfihNts")
-    ]
-  ]
-)
-
-// == Intended Audience
-// *Audience*: AI/ML researchers with access to Slurm clusters (also relevant for cluster staff)
-
-// What this talk *is* about:
-// - Using Slurm clusters efficiently
-// - Tools / good practices / tips to reduc friction in your research workflow
-// - Setting up for easy performance optimization
-
-
-// What this talk is *not* about:
-
-// - Low-level ML code optimization
-// - Theory of parallelism / distributed training
-
-#outline()
-
-= Introduction
 
 == About Mila
 
@@ -134,6 +92,147 @@ This talk is *very biased* by my background and experience!
 
 I _will_ miss things. Please share your own tips and tricks in the Q&A!
 
+
+== About this presentation
+#quote([
+  Goal: Share some useful tips and tricks to increase your productivity and reduce friction in your research workflow with Slurm clusters.
+])
+
+
+Idea: Roughly organized as an _Adventure Book_!
+
+--> *You get to (sometimes) pick where we go!* 😁
+
+// - Organized as roughly follow a "_typical_" ML researcher's workflow
+// - Sit back, relax, feel free to ask questions and share your input.
+#align(horizon)[
+#columns(2,
+  [
+    #align(center)[
+    Slides + Code
+    #linebreak()
+    #image("images/github_qr_code.png", width:30%)
+    #link("https://github.com/lebrice/upper_bound_2026_slides", "github.com/lebrice/upper_bound_2026_slides")
+    ]
+    #colbreak()
+    #align(center)[
+    Live Interaction with Slido
+    #linebreak()
+    #image("images/QR_Code_Slido.png", width:40%)
+    #link("https://app.sli.do/event/9c6SVnBwxftYKfCzfihNts", "app.sli.do/event/9c6SVnBwxftYKfCzfihNts")
+    ]
+  ]
+)]
+
+
+== About _you_!
+
+
+// == Intended Audience
+You _are_ a researcher in AI/ML at a Canadian university or company.
+
+// You like VsCode.
+
+Your goal is to beat the state of the art method on problem X in your sub-field of ML.
+
+You have a decently-working way to do things, but you are curious about best practices.
+
+// Link
+// #show ref: it => {
+//   // Filter only for links, not for citations
+//   if it.element != none {
+//     let el = it.element
+//     set text(size: 0.7em, fill: white)
+//     box(
+//       fill: blue, outset: (x: 0.0em, y: 0.2em),
+//       radius: 0.8em,  height: 0.8em, inset: (x:0.5em),
+//       //stroke: (bottom: fill-color),
+//     )[
+//       // if no supplement is passed
+//       #if el.func() == heading and it.supplement == auto {
+//         link(el.location(), el.body)
+//       } else if el.func() == heading { // if a supplement is passed
+//         link(el.location(), it.supplement.text)
+//       }
+//     ]
+//   } else {
+//     return it
+//   }
+// }
+// #set ref.box.fill(blue)
+
+#let choices(
+  top_part: none,
+  left_ref,
+  left_title: "⏪ Go Left!",
+  right_title: "Go right! ⏩",
+  left_desc,
+  right_ref,
+  right_desc,
+) = {
+  align(horizon + center)[
+    #top_part
+    #columns(2)[
+      #link(left_ref, rect(fill: gray.lighten(90%), stroke: gray)[
+        #left_title
+        #linebreak()
+        #left_desc
+      ])
+      #colbreak()
+      #link(right_ref, rect(fill: gray.lighten(90%), stroke: gray)[
+        #right_title
+        #linebreak()
+        #right_desc
+      ])
+    ]
+  ]
+}
+
+#choices(<failure_end>, [
+  It's too much trouble. Keep using your laptop.
+], <clusters>, [Find more information on this new cluster!], top_part: [You hear that new compute clusters are available for researchers!
+
+  It could very well help you get your results faster!]
+)
+// #align(horizon + center)[
+//   You hear that a new compute cluster has become available!
+
+//   It could very well help you get your results faster!
+//   #columns(2)[
+//     #link(<clusters>, rect(fill: gray.lighten(90%), stroke: gray)[
+//       ⏪ Go Left!
+//       #linebreak()
+//       Don't use new compute clusters.
+//       It's just too much trouble.
+//     ]
+//     )
+
+//     #colbreak()
+
+//     #link(<clusters>, rect(fill: gray.lighten(90%), stroke: gray)[
+//       ⏩ Go Right!
+//       #linebreak()
+//       Learn more about canadian compute clusters
+//     ]
+//     )
+//   ]
+// ]
+
+
+// What this talk *is* about:
+// - Using Slurm clusters efficiently
+// - Tools / good practices / tips to reduc friction in your research workflow
+// - Setting up for easy performance optimization
+
+
+// What this talk is *not* about:
+
+// - Low-level ML code optimization
+// - Theory of parallelism / distributed training
+
+
+// = Before we Begin
+
 // == What is a Compute cluster, really? <switches>
 
 // *Components*:
@@ -172,11 +271,14 @@ I _will_ miss things. Please share your own tips and tricks in the Q&A!
 // - _Striped_ data → high throughput for large sequential reads
 // - High _metadata latency_ on small files (each `open()` = network round-trip)
 // - Avoid millions of tiny files — prefer `.tar` shards, HDF5, WebDataset, or `$SLURM_TMPDIR`
+#pagebreak()
+// #outline(title: none)
 
+// = Introduction
 
+#outline()
 
 == Context: Canadian Compute Clusters <clusters>
-
 
 #let mila(name)  = (table.cell(fill: gray, text(fill: white, name)))
 #let drac(name)  = (table.cell(fill: blue, text(fill: white, name)))
@@ -199,16 +301,23 @@ I _will_ miss things. Please share your own tips and tricks in the Q&A!
   [#paice([Vulcan])],     [16k],    [L40S],     [*\~858*], [5 PB],   [No],
 )
 
-- _Our job is to help researchers use the compute they have access to, this compute efficiently!_
+// #choices(<failure_end>, [
+//   It's too much trouble. Keep using your laptop.
+// ], <clusters>, [Find more information on this new cluster!], top_part: []
+// )
+
+
+// - _Our job is to help researchers use the compute they have access to, this compute efficiently!_
 
 // - Mila cluster has preemptible long jobs and limited non-preemptible short jobs.
 
-= Connecting to Compute Clusters
+= Connecting to Compute Clusters <connecting>
 
 == Context
 
 / TODO: Add an image of struggling researcher.
 
+  Setting up access to compute clusters can be a bit annoying!
 
 *Section Outline*
 
@@ -824,7 +933,7 @@ previous_job_id = int(os.environ["SLURM_JOB_DEPENDENCY"].removeprefix("afterok:"
 ]
 
 #align(bottom + right)[
-⏩ Next up: Writing Better ML Code!
+⏩ Next up: Writing Cleaner ML Code!
 ]
 
 = Libraries for Cleaner ML Code
@@ -835,7 +944,7 @@ previous_job_id = int(os.environ["SLURM_JOB_DEPENDENCY"].removeprefix("afterok:"
   // the fill and the page.
   it.indented(it.prefix()+[#h(0.5em)], it.body()),
 )
-#suboutline(title: "Writing Better ML Code")
+#suboutline(title: "Writing Cleaner ML Code")
 
 
 // == What to do?
@@ -1140,6 +1249,16 @@ Or in code: `wandb.init(mode="offline")`.
 
 = Testing for ML code
 
+== Why/How to do testing for ML code?
+
+Testing is the *safety net* that allows you to experiment freely!
+
+You already _do_ testing!
+- Run small experiments to check that things are working.
+
+
+
+
 == Reproducibility testing <tensor-regression>
 
 #link("https://github.com/mila-iqia/tensor_regression", "github.com/mila-iqia/tensor_regression")
@@ -1235,6 +1354,14 @@ def test_custom_op_forward_backward(tensor_regression, batch_size: int):
 
 
 = Debugging & Profiling
+
+#show outline.entry: it => link(
+  it.element.location(),
+  // Keep just the body, dropping
+  // the fill and the page.
+  it.indented(it.prefix()+[#h(0.5em)], it.body()),
+)
+#suboutline(title: "Debugging & Profiling")
 
 == Debugging Multi-GPU Jobs
 
@@ -1702,7 +1829,7 @@ Research Template Repository: https://mila-iqia.github.io/ResearchTemplate/
 *Why Slurm?* Clean, sandboxed interface — agent inherits resource management and isolation for free.
 
 WIP at Mila — stay tuned!
-= Q & A
+= Thank you!
 == Thank you!
 
 Please let us know if you have any questions or comments!
@@ -1731,3 +1858,15 @@ jobid_c=$(sbatch --parsable job.sh --lr=0.03)
 sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c \
         job.sh --lr=best
 ```
+
+
+== 🎉 Success! 🎉 <success_end>
+
+You were able to submit all the jobs required for your experiment.
+
+Your article looks good, and you are expecting good results at the next conference cycle!
+🎉
+
+== 😢 Oh No! <failure_end>
+
+Unfortunately, your jobs did not run fast enough. Your results are inconclusive. You are not sure what went wrong, but you really want to try better next time.
