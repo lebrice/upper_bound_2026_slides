@@ -501,7 +501,7 @@ Your project is now setup properly!
   // the fill and the page.
   it.indented(it.prefix()+[#h(0.5em)], it.body()),
 )
-#suboutline(title: "Slurm Tips and Tricks - Section Outline")
+#suboutline(title: "Slurm Tips and Tricks")
 
 // == Context
 // == Slurm Tips and Tricks
@@ -572,6 +572,63 @@ One script per experiment → explosion of scripts.
   $ sbatch job.sh --lr=0.001
   $ sbatch job.sh --lr=0.001 --nlayers=32
   ```
+]
+
+
+== Use _Code Checkpointing_ <code_checkpointing>
+
+/ *problem*:
+  1. `sbatch` job A
+  2. Edit Python scripts
+  3. `sbatch` job B
+  4. Job A runs with *modified* code (BAD!)
+  5. Job B runs with modified code
+  6. Results are weird???
+
+*Solution*:
+1. `safe_sbatch`: refuses to submit with uncommitted changes
+2. Job script clones code at the submitted commit ("code checkpointing")
+
+#pagebreak()
+
+Slurm + Git + #ref(<uv>, supplement: "uv") enables easy code checkpointing:
+
+safe_sbatch:
+```bash
+#!/bin/bash
+# safe_sbatch wrapper
+if [ -n "`git status --porcelain`" ]; then
+    echo "Your working directory is dirty! "
+    echo "Please add and commit changes before submitting a job."
+    exit 1
+fi
+export GIT_COMMIT=`git rev-parse HEAD`
+exec sbatch "$@"
+```
+
+```console
+safe_sbatch --gpus=1 --time=3-00:00:00 job.sh
+```
+
+#pagebreak()
+
+Job clones the exact submitted commit into `$SLURM_TMPDIR`, runs from there.
+
+- Venv recreated from uv cache (works offline)
+// - Commands are run in the cloned project
+
+/ *Job.sh*: ```bash
+srun --ntasks-per-node=1 --ntasks=$SLURM_JOB_NUM_NODES bash -e <<END
+    cd $SLURM_TMPDIR
+    git clone $HOME/my_project
+    git -C $SLURM_TMPDIR/my_project checkout --detach $GIT_COMMIT
+    uv sync --directory $SLURM_TMPDIR/my_project
+END
+srun uv run --directory $SLURM_TMPDIR/my_project "$@"
+```
+
+#align(end + horizon)[
+⏩ Let's submit some jobs!
 ]
 
 
@@ -674,7 +731,7 @@ Large jobs can take a long time to schedule!
 - Goal: optimize time-to-result! (queue time + runtime)
 
 
-== Short Jobs
+== Use Short Jobs / Job _Chunking_
 
 === Checkpointing is a must <checkpointing>
 
@@ -736,7 +793,7 @@ srun uv run "$@"
 
 
 #pagebreak()
-=== Job chunking with `sbatch --dependency`
+=== Job chunking with Job Dependencies
 
 // Alternative approach using job dependencies:
 
@@ -758,78 +815,31 @@ previous_job_id = int(os.environ["SLURM_JOB_DEPENDENCY"].removeprefix("afterok:"
 ```
 
 
-== Code Checkpointing <code_checkpointing>
+==
 
-/ *problem*:
-  1. `sbatch` job A
-  2. Edit Python scripts
-  3. `sbatch` job B
-  4. Job A runs with *modified* code (BAD!)
-  5. Job B runs with modified code
-  6. Results are weird???
+#align(center + horizon)[
+  We just received some UGLY code from a colleague.
 
-*Solution*:
-1. `safe_sbatch`: refuses to submit with uncommitted changes
-2. Job script clones code at the submitted commit ("code checkpointing")
+  Let's roll!
+]
 
-#pagebreak()
-
-Slurm + Git + #ref(<uv>) enables easy code checkpointing:
-
-safe_sbatch:
-```bash
-#!/bin/bash
-# safe_sbatch wrapper
-if [ -n "`git status --porcelain`" ]; then
-    echo "Your working directory is dirty! "
-    echo "Please add and commit changes before submitting a job."
-    exit 1
-fi
-export GIT_COMMIT=`git rev-parse HEAD`
-exec sbatch "$@"
-```
-
-```console
-safe_sbatch --gpus=1 --time=3-00:00:00 job.sh
-```
-
-#pagebreak()
-
-Job clones the exact submitted commit into `$SLURM_TMPDIR`, runs from there.
-
-- Venv recreated from uv cache (works offline)
-// - Commands are run in the cloned project
-
-/ *Job.sh*: ```bash
-srun --ntasks-per-node=1 --ntasks=$SLURM_JOB_NUM_NODES bash -e <<END
-    cd $SLURM_TMPDIR
-    git clone $HOME/my_project
-    git -C $SLURM_TMPDIR/my_project checkout --detach $GIT_COMMIT
-    uv sync --directory $SLURM_TMPDIR/my_project
-END
-srun uv run --directory $SLURM_TMPDIR/my_project "$@"
-```
-
-
+#align(bottom + right)[
 ⏩ Next up: Writing Better ML Code!
+]
 
+= Libraries for Cleaner ML Code
 
-= Writing Better ML Code
-
-
-// #show outline.entry: it => link(
-//   it.element.location(),
-//   // Keep just the body, dropping
-//   // the fill and the page.
-//   it.indented(it.prefix(), it.body()),
-// )
+#show outline.entry: it => link(
+  it.element.location(),
+  // Keep just the body, dropping
+  // the fill and the page.
+  it.indented(it.prefix()+[#h(0.5em)], it.body()),
+)
 #suboutline(title: "Writing Better ML Code")
 
 
-
-
-== What to do?
-You want to start a new project. How do you go about doing it?
+// == What to do?
+// You want to start a new project. How do you go about doing it?
 
 == Einops <einops>
 
