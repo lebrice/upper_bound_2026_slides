@@ -342,9 +342,9 @@ Host mila-cpu
 / live demo: `ssh mila-cpu`
 
 
-== Typical Research Workflow - Mila
+== Result: Your new workflow
 
-1. `mila code my_project --cluster=mila --salloc --gpus=1 --mem=16G --time=06:00:00`
+1. `mila code my_project --cluster=my_cluster --salloc --gpus=1 --mem=16G --time=06:00:00`
 
 2. Develop iteratively in the VSCode terminal (running on the compute node)
 
@@ -353,7 +353,7 @@ Host mila-cpu
 4. Same loop on other clusters: `--cluster=<cluster>`
 
 
-
+#choices(<uv>, [Learn to use UV to manage Python Projects], <slurm>, [Learn some neat Slurm tips and tricks], top_part: [You now have a fluid, easy way to connect and start working on a Compute cluster!])
 
 
 = Managing Python Projects (with uv)
@@ -558,17 +558,37 @@ TORCH_CUDA_ARCH_LIST = "9.0"
 ```
 
 
-⏩ Next up: Slurm Tips and Tricks!
 
-==
+== Result: Your new Python setup
 
-#align(horizon + center)[
-Your project is now setup properly!
+- You already learned to use `mila code` to open a project on a cluster
 
-*You want to run some experiments!*
+
+- You now also know how to use `uv` to manage your project dependencies!
+
+#choices(
+  <slurm>,
+  "Learn some neat Slurm tricks!",
+  <clean-code>,
+  "Start writing some really clean ML code!",
+  left_title: "Pick-up the magic tome 📚",
+  right_title: "Skip ahead ⏩",
+  top_part: [
+  Your project is now setup properly!
+
+  *You want to run some experiments!*
+
+  However, you haven't used Slurm in a while...
 ]
+)
 
-= Slurm Tips and Tricks
+// #align(horizon + center)[
+// Your project is now setup properly!
+
+// *You want to run some experiments!*
+// ]
+
+= Slurm Tips and Tricks <slurm>
 
 #show outline.entry: it => link(
   it.element.location(),
@@ -613,9 +633,9 @@ Your project is now setup properly!
   - (Avoid using it to create jobs)
 
 // #v()
-#align(end + horizon)[
-⏩ I barely ever use `srun`, what's so great about it?
-]
+// #align(end + horizon)[
+// ⏩ I barely ever use `srun`, what's so great about it?
+// ]
 
 #pagebreak()
 === Reuse your job scripts <job_submission>
@@ -648,6 +668,18 @@ One script per experiment → explosion of scripts.
   $ sbatch job.sh --lr=0.001 --nlayers=32
   ```
 ]
+
+
+== Oh No! Incomprehensible results!
+
+/ *problem*:
+  1. Submit a job 1 with `sbatch`
+  2. Continue working, improving the python code
+  3. Submit a new job 2 with `sbatch`
+  4. Results for job 1 are weird?!
+  5. Results for job 2 are fine?
+  What's going on?
+
 
 
 == Use _Code Checkpointing_ <code_checkpointing>
@@ -902,7 +934,7 @@ previous_job_id = int(os.environ["SLURM_JOB_DEPENDENCY"].removeprefix("afterok:"
 ⏩ Next up: Writing Cleaner ML Code!
 ]
 
-= Libraries for Cleaner ML Code
+= Libraries for Cleaner ML Code <clean-code>
 
 #show outline.entry: it => link(
   it.element.location(),
@@ -1725,6 +1757,7 @@ You are not sure what went wrong, but you really want to try better next time.
 // = Q&A
 = Extras (overflow slides)
 
+#suboutline(title: "Extras")
 
 == Use Job Dependencies to prevent waste <job_dependencies>
 
