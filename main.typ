@@ -25,8 +25,11 @@
   // theme: "full", // one of "normal", "full"
   // ... see the docs for more options
 )
-#set heading(numbering: "1.1")
+#set heading(numbering: "1.1.a")
 #import "@preview/suboutline:0.3.0": *
+#show heading.where(level: 3): set heading(numbering: none)
+
+
 
 == About this presentation
 #quote([
@@ -496,7 +499,7 @@ Your project is now setup properly!
   it.element.location(),
   // Keep just the body, dropping
   // the fill and the page.
-  it.indented(it.prefix(), it.body()),
+  it.indented(it.prefix()+[#h(0.5em)], it.body()),
 )
 #suboutline(title: "Slurm Tips and Tricks - Section Outline")
 
@@ -525,13 +528,13 @@ Your project is now setup properly!
 
 == Slurm Basics
 
-- *`sbatch`* `--ntasks=4 --gpus=4 --cpus-per-task=16 --mem=32G --time=03:00:00 job.sh`
-  - batch job: requests resources for _*tasks*_
-- *`salloc`* `--ntasks=4 --gpus=4 --cpus-per-task=16 --mem=32G --time=03:00:00`
+- *`sbatch`* `--ntasks=4 --gpus-per-task=1 --cpus-per-task=16 --mem=64G --time=3:00:00 job.sh`
+  - batch job: requests resources to run _*tasks*_ / commands
+- *`salloc`* `--ntasks=4 --gpus-per-task=1 --cpus-per-task=16 --mem=64G --time=3:00:00`
   - Interactive job, gives you a terminal on the compute node
 
 - *`srun`* `python main.py`
-  - Runs a _command_ once per _*task*_ inside a job
+  - Runs one or more _*tasks*_, (_commands_) inside a job
   - (Avoid using it to create jobs)
 
 // #v()
@@ -542,7 +545,8 @@ Your project is now setup properly!
 #pagebreak()
 === Reuse your job scripts <job_submission>
 
-Editing the same job.sh is tedious. Using a job script per experiment → explosion of scripts.
+Editing the same script for lots of experiments is tedious.
+One script per experiment → explosion of scripts.
 
 *Solution:*
 
@@ -571,43 +575,8 @@ Editing the same job.sh is tedious. Using a job script per experiment → explos
 ]
 
 
-== Checkpointing is a must! <checkpointing>
-
-Proper checkpointing is *crucial*. It enables:
-- Long jobs on preemptible clusters (e.g. Mila)
-- Job chunking (#ref(<job_chunking>))
-- Resilience to hardware/software failures
-
-- *Tip*: #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [Distributed Checkpointing]) for large multi-GPU models
-  - More: #ref(<efficient-checkpointing>) and the TorchTitan talk at Upper Bound 2026
-  - "Async" mode overlaps checkpointing with training
-
-
-== Graceful Preemption <graceful_preemption>
-
-// On preemptible clusters (e.g. Mila), Slurm sends a signal *before* killing your job. Catch it, checkpoint, exit cleanly.
-
-```bash
-#!/bin/bash
-#SBATCH --signal=B:USR1@60   # send SIGUSR1 60s before timeout/preemption
-#SBATCH --requeue            # auto-resubmit after preemption
-srun uv run python train.py "$@"
-```
-
-```python
-import signal
-def _on_preempt(signum, frame):
-    save_checkpoint(model, optimizer, step)   # final flush
-    sys.exit(0)                                # exit 0 → Slurm requeues cleanly
-signal.signal(signal.SIGUSR1, _on_preempt)
-```
-
-// - Pairs with #ref(<checkpointing>): you _*must*_ have a working checkpoint path first
-// - `--requeue` + an `id` derived from `SLURM_JOB_ID` (see #ref(<wandb>)) → seamless resumption
-
-
-
-== `srun` is all you need!
+== Compact Jobs
+=== `srun` is all you need!
 
 `srun` is _*the*_ way to run commands in a Slurm job.
 
@@ -638,7 +607,9 @@ _no need_ for `torchrun` / `accelerate launch` / etc!
 ⏩ How?
 ]
 
-== Easy Job Packing with srun <job-packing>
+#pagebreak()
+// == Compact Jobs
+=== Easy Job Packing with srun <job-packing>
 
 Need to run lots of jobs, but each job does not use all the GPU memory!
 
@@ -653,10 +624,11 @@ Need to run lots of jobs, but each job does not use all the GPU memory!
 
 #pagebreak()
 
-*Different commands per task with`srun --multi-prog`!*
-#footnote([
-(See #link("https://slurm.schedmd.com/srun.html#OPT_multi-prog", [`srun` documentation]))
-])
+=== Different commands per task with `srun --multi-prog`
+// #footnote([
+See #link("https://slurm.schedmd.com/srun.html#OPT_multi-prog", [`srun` documentation]) for more info!
+// ])
+// *Different commands per task with`srun --multi-prog`!*
 
   ```text
   # task_commands.txt
@@ -678,8 +650,70 @@ python train.py --seed=1 --lr=0.001 --batch-size=128
 // ⏩ Won't this be difficult to manage with lots of commands?
 // ]
 
+== Flexible Jobs <flexible_job_layout>
+// Use a Flexible Job Layout
+Large jobs can take a long time to schedule!
 
-== Job Chunking: Short Jobs always win! <job_chunking>
+➡️ Flexible job layout → faster scheduling!
+
+
+// *Suggestion*
+
+- From: `sbatch --nodes=2 --ntasks-per-node=4 --gpus-per-node=4 job.sh`
+  - 2 full nodes, 4 GPUs each — slow to schedule
+
+- To: `sbatch `*`--nodes=1-4 --ntasks=8 --switches=1`*` --gpus-per-task=1 job.sh`
+  - 8 GPUs across 1-4 nodes, prefer one network switch // (see #ref(<switches>, supplement: "switches"))
+
+
+
+#v(3em)
+
+*Recommendations*:
+- use `sbatch --switches=1@3600` and monitor training throughput (with e.g. #ref(<wandb>))
+- Goal: optimize time-to-result! (queue time + runtime)
+
+
+== Short Jobs
+
+=== Checkpointing is a must <checkpointing>
+
+Proper checkpointing is *crucial*. It enables:
+- Long jobs on preemptible clusters (e.g. Mila)
+- Job chunking (#ref(<job_chunking>))
+- Resilience to hardware/software failures
+
+- *Tip*: #link("https://docs.pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html", [Distributed Checkpointing]) for large multi-GPU models
+  - More: #ref(<efficient-checkpointing>) and the TorchTitan talk at Upper Bound 2026
+  - "Async" mode overlaps checkpointing with training
+
+#pagebreak()
+=== Graceful Preemption <graceful_preemption>
+
+// On preemptible clusters (e.g. Mila), Slurm sends a signal *before* killing your job. Catch it, checkpoint, exit cleanly.
+
+```bash
+#!/bin/bash
+#SBATCH --signal=B:USR1@60   # send SIGUSR1 60s before timeout/preemption
+#SBATCH --requeue            # auto-resubmit after preemption
+srun uv run python train.py "$@"
+```
+
+```python
+import signal
+def _on_preempt(signum, frame):
+    save_checkpoint(model, optimizer, step)   # final flush
+    sys.exit(0)                                # exit 0 → Slurm requeues cleanly
+signal.signal(signal.SIGUSR1, _on_preempt)
+```
+
+// - Pairs with #ref(<checkpointing>): you _*must*_ have a working checkpoint path first
+// - `--requeue` + an `id` derived from `SLURM_JOB_ID` (see #ref(<wandb>)) → seamless resumption
+
+
+// == Short jobs always win!
+#pagebreak()
+=== Easy job chunking with job arrays <job_chunking>
 
 
 With #ref(<checkpointing>, supplement:"checkpointing"), break long jobs into chunks → schedule faster, results sooner.
@@ -702,8 +736,9 @@ srun uv run "$@"
 
 
 #pagebreak()
+=== Job chunking with `sbatch --dependency`
 
-Alternative approach using job dependencies:
+// Alternative approach using job dependencies:
 
 
 ```bash
@@ -721,28 +756,6 @@ And in Python:
 ```python
 previous_job_id = int(os.environ["SLURM_JOB_DEPENDENCY"].removeprefix("afterok:"))
 ```
-
-== Flexible Jobs always win! <flexible_job_layout>
-// Use a Flexible Job Layout
-Large jobs can take a long time to schedule!
-
-➡️ Flexible job layout → faster scheduling!
-
-
-// *Suggestion*
-
-- From: `sbatch --nodes=2 --ntasks-per-node=4 --gpus-per-node=4 job.sh`
-  - 2 full nodes, 4 GPUs each — slow to schedule
-
-- To: `sbatch `*`--nodes=1-4 --ntasks=8 --switches=1`*` --gpus-per-task=1 job.sh`
-  - 8 GPUs across 1-4 nodes, prefer one network switch // (see #ref(<switches>, supplement: "switches"))
-
-#v(3em)
-
-*Recommendations*:
-- use `sbatch --switches=1@3600` and monitor training throughput (with e.g. #ref(<wandb>))
-- Goal: optimize time-to-result! (queue time + runtime)
-
 
 
 == Code Checkpointing <code_checkpointing>
@@ -798,10 +811,22 @@ srun uv run --directory $SLURM_TMPDIR/my_project "$@"
 ```
 
 
-
 ⏩ Next up: Writing Better ML Code!
 
+
 = Writing Better ML Code
+
+
+// #show outline.entry: it => link(
+//   it.element.location(),
+//   // Keep just the body, dropping
+//   // the fill and the page.
+//   it.indented(it.prefix(), it.body()),
+// )
+#suboutline(title: "Writing Better ML Code")
+
+
+
 
 == What to do?
 You want to start a new project. How do you go about doing it?
