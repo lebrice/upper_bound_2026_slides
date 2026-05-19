@@ -116,7 +116,7 @@ Idea: Roughly organized as an _Adventure Book_!
     ]
     #colbreak()
     #align(center)[
-    Live Interaction with Slido
+    Q&A with Slido
     #linebreak()
     #image("images/QR_Code_Slido.png", width:40%)
     #link("https://app.sli.do/event/9c6SVnBwxftYKfCzfihNts", "app.sli.do/event/9c6SVnBwxftYKfCzfihNts")
@@ -353,7 +353,18 @@ Host mila-cpu
 4. Same loop on other clusters: `--cluster=<cluster>`
 
 
-#choices(<uv>, [Learn to use UV to manage Python Projects], <slurm>, [Learn some neat Slurm tips and tricks], top_part: [You now have a fluid, easy way to connect and start working on a Compute cluster!])
+#choices(
+  <uv>,
+  [Setup a neat, new Python project],
+  <slurm>,
+  [Learn some neat Slurm tips and tricks],
+  left_title: "⏪ Take the left road!",
+  right_title: "Take the right road! ⏩",
+  top_part: [
+    You now have the _power_ to connect and do interactive development on a Slurm cluster.
+
+    You are at a crossroads. Which road shall you take?
+  ])
 
 
 = Managing Python Projects (with uv)
@@ -361,7 +372,8 @@ Host mila-cpu
 
 == Python Environments Are Messy!
 
-/ todo : Add an image of a messy python ecosystem, difficult to manage dependencies, Conda not being allowed on DRAC, Containers being hard to use, etc.
+
+// / todo : Add an image of a messy python ecosystem, difficult to manage dependencies, Conda not being allowed on DRAC, Containers being hard to use, etc.
 
 
 * In this section: *
@@ -564,21 +576,19 @@ TORCH_CUDA_ARCH_LIST = "9.0"
 - You already learned to use `mila code` to open a project on a cluster
 
 
-- You now also know how to use `uv` to manage your project dependencies!
+- You now also _wield the power_ to use `uv` to manage your project dependencies!
 
 #choices(
   <slurm>,
   "Learn some neat Slurm tricks!",
   <clean-code>,
   "Start writing some really clean ML code!",
-  left_title: "Pick-up the magic tome 📚",
+  left_title: "Pick-up the magic tome and start reading 📚",
   right_title: "Skip ahead ⏩",
   top_part: [
-  Your project is now setup properly!
+  Your project is now setup properly! *You want to run some experiments!*
 
-  *You want to run some experiments!*
-
-  However, you haven't used Slurm in a while...
+  You find an intriguing tome. The inscription reads "Slurm Tips & Tricks".
 ]
 )
 
@@ -590,15 +600,41 @@ TORCH_CUDA_ARCH_LIST = "9.0"
 
 = Slurm Tips and Tricks <slurm>
 
-#show outline.entry: it => link(
-  it.element.location(),
-  // Keep just the body, dropping
-  // the fill and the page.
-  it.indented(it.prefix()+[#h(0.5em)], it.body()),
-)
-#suboutline(title: "Slurm Tips and Tricks")
+// #show outline.entry: it => link(
+//   it.element.location(),
+//   // Keep just the body, dropping
+//   // the fill and the page.
+//   it.indented(it.prefix()+[#h(0.5em)], it.body()),
+// )
+// #suboutline(title: "Slurm Tips and Tricks")
 
-// == Context
+== Slurm Tips and Tricks
+
+#table(columns: (60%, auto), stroke: none,
+[], [],
+[
+As you wander on the road, you encounter a strange man.
+
+"_I am Olexa, arch-magus of Slurm clusters"_, he says.
+
+He gives you three pieces of advice:
+
+#quote([- _make your jobs *compact*,_
+  - _make your jobs *flexible*_
+  - _and make your jobs *short*!_
+
+_Only then, will you be able to gather results in time for the next conference!_
+])
+
+You continue walking, slightly confused.
+
+],
+[
+  #align(horizon + center)[
+    #image("images/cluster_archmage.jpeg", width: 90%)
+  ]
+]
+)
 // == Slurm Tips and Tricks
 
 
@@ -672,13 +708,13 @@ One script per experiment → explosion of scripts.
 
 == Oh No! Incomprehensible results!
 
-/ *problem*:
-  1. Submit a job 1 with `sbatch`
-  2. Continue working, improving the python code
-  3. Submit a new job 2 with `sbatch`
-  4. Results for job 1 are weird?!
-  5. Results for job 2 are fine?
-  What's going on?
+// / *problem*:
+1. Submit a job 1 with `sbatch`
+2. Continue working, improving the python code
+3. Submit a new job 2 with `sbatch`
+4. Results for job 1 are weird?!
+5. Results for job 2 are fine?
+What's going on?
 
 
 
