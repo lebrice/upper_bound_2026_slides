@@ -1185,19 +1185,25 @@ Lots of other great options!
 - Save Slurm environment variables in the WandB config! Very useful for debugging later.
 - Use `resume: allow` and an `id` based on Job ID to easily resume runs, or for #ref(<job_chunking>, supplement: "job chunking")
 
-#set text(size: 10pt)
+#set text(size: 9pt)
 ```python
 import os
 import wandb
 run = wandb.init(
-  name=os.environ.get("SLURM_JOB_ID"),
-  id=os.environ.get("SLURM_JOB_ID"),
-  resume="allow",
-  config=vars(args) | {
-    "env": {k: v for k, v in os.environ.items() if k.startswith("SLURM_")}
-  }
+    name=os.environ.get("SLURM_JOB_ID"),
+    id=os.environ.get("SLURM_JOB_ID"),
+    resume="allow",
+    config=vars(args) | {
+        "env": {k: v for k, v in os.environ.items() if k.startswith("SLURM_")}
+    }
 )
+
+for batch in dataloader:
+    loss, acc = training_step(batch)
+    wandb.log({"train/loss": loss, "train/acc": acc})
 ```
+#set text(size: 11pt)
+
 
 #pagebreak()
 
@@ -1264,7 +1270,7 @@ Or in code: `wandb.init(mode="offline")`.
 
 Testing is the *safety net* that allows you to experiment freely.
 
-You already _do_ testing! Just not in an efficient way!
+You already _do_ testing!
 
 - Run small experiments to check that things are working.
 
@@ -1273,6 +1279,14 @@ You already _do_ testing! Just not in an efficient way!
   - RL: CartPole → Atari → Craftax → ...
   - NLP: WikiText → ... → C4 → The Pile → ...
 
+- Common sanity-checks in ML:
+  - *Overfitting test*
+  - Checkpoint / resuming
+  - 1 / 2 / 4 GPUs, multi-node
+
+#align(right + horizon)[
+*How to write tests for these?*
+]
 
 == Simple Testing for ML
 
