@@ -1,0 +1,16 @@
+{
+    "configurations": [
+        {
+            // Loosely based on https://medium.com/@franoisponchon/pytorch-ddp-debugging-in-vscode-4fb162eba07e
+            "name": "Debug job with torchrun (Single-node)",
+            "type": "debugpy",
+            "request": "launch",
+            // we launch a module...
+            "module": "torch.distributed.run",
+            // with args...
+            "args": "--nproc_per_node=${input:NumGPUs} ${file} ${command:pickArgs}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ]
+}
