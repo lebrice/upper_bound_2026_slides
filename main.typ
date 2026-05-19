@@ -167,6 +167,47 @@ You have a decently-working way to do things, but you are curious about best pra
   ]
 }
 
+
+#let threechoices(
+  top_part: none,
+  left_ref,
+  left_title: "⏪ Go Left!",
+  left_color: blue,
+  left_desc,
+  mid_ref,
+  mid_title: "⏬ Go Down!",
+  mid_color: blue,
+  mid_desc,
+  right_ref,
+  right_title: "Go right! ⏩",
+  right_color: blue,
+  right_desc,
+) = {
+  align(horizon + center)[
+    #top_part
+    #columns(3)[
+      #link(left_ref, rect(fill: left_color.lighten(90%), stroke: left_color)[
+        #left_title
+        #linebreak()
+        #left_desc
+      ])
+      #colbreak()
+      #link(mid_ref, rect(fill: mid_color.lighten(90%), stroke: mid_color)[
+        #mid_title
+        #linebreak()
+        #mid_desc
+      ])
+      #colbreak()
+      #link(right_ref, rect(fill: right_color.lighten(90%), stroke: right_color)[
+        #right_title
+        #linebreak()
+        #right_desc
+      ])
+    ]
+  ]
+}
+
+
 #choices(<failure_end>, [
   It's too much trouble. Don't bother.
 ], <clusters>, [Find out more about these new clusters!], left_color: gray, top_part: [You hear that new compute clusters are available for researchers!
@@ -706,75 +747,6 @@ One script per experiment → explosion of scripts.
 ]
 
 
-== Oh No! Incomprehensible results!
-
-// / *problem*:
-1. Submit a job 1 with `sbatch`
-2. Continue working, improving the python code
-3. Submit a new job 2 with `sbatch`
-4. Results for job 1 are weird?!
-5. Results for job 2 are fine?
-What's going on?
-
-
-
-== Use _Code Checkpointing_ <code_checkpointing>
-
-/ *problem*:
-  1. `sbatch` job A
-  2. Edit Python scripts
-  3. `sbatch` job B
-  4. Job A runs with *modified* code (BAD!)
-  5. Job B runs with modified code
-  6. Results are weird???
-
-*Solution*:
-1. `safe_sbatch`: refuses to submit with uncommitted changes
-2. Job script clones code at the submitted commit ("code checkpointing")
-
-#pagebreak()
-
-Slurm + Git + #ref(<uv>, supplement: "uv") enables easy code checkpointing:
-
-safe_sbatch:
-```bash
-#!/bin/bash
-# safe_sbatch wrapper
-if [ -n "`git status --porcelain`" ]; then
-    echo "Your working directory is dirty! "
-    echo "Please add and commit changes before submitting a job."
-    exit 1
-fi
-export GIT_COMMIT=`git rev-parse HEAD`
-exec sbatch "$@"
-```
-
-```console
-safe_sbatch --gpus=1 --time=3-00:00:00 job.sh
-```
-
-#pagebreak()
-
-Job clones the exact submitted commit into `$SLURM_TMPDIR`, runs from there.
-
-- Venv recreated from uv cache (works offline)
-// - Commands are run in the cloned project
-
-/ *Job.sh*: ```bash
-srun --ntasks-per-node=1 --ntasks=$SLURM_JOB_NUM_NODES bash -e <<END
-    cd $SLURM_TMPDIR
-    git clone $HOME/my_project
-    git -C $SLURM_TMPDIR/my_project checkout --detach $GIT_COMMIT
-    uv sync --directory $SLURM_TMPDIR/my_project
-END
-srun uv run --directory $SLURM_TMPDIR/my_project "$@"
-```
-
-#align(end + horizon)[
-⏩ Let's submit some jobs!
-]
-
-
 == Compact Jobs
 === `srun` is all you need!
 
@@ -958,13 +930,30 @@ previous_job_id = int(os.environ["SLURM_JOB_DEPENDENCY"].removeprefix("afterok:"
 ```
 
 
-==
+== Result: Slurm tips & Tricks
 
-#align(center + horizon)[
-  We just received some UGLY code from a colleague.
+In addition to being able to connect and run code interactively on a compute node,
 
-  Let's roll!
+You are now able to submit jobs that are Compact, Flexible, and Short!
+
+Your jobs get scheduled much faster.
+Things are looking up!
+
+#threechoices(
+  <debugging-profiling>,
+  [Run and Debug the code to understand it better],
+  <clean-code>,
+  [
+    Clean-up the code using new libraries
+  ],
+  <testing>,
+  [Write some tests before doing anything],
+  top_part: [
+  We just received some confusing code from a colleague.
+
+  You
 ]
+)
 
 #align(bottom + right)[
 ⏩ Next up: Writing Cleaner ML Code!
@@ -980,6 +969,9 @@ previous_job_id = int(os.environ["SLURM_JOB_DEPENDENCY"].removeprefix("afterok:"
 )
 #suboutline(title: "Writing Cleaner ML Code")
 
+==
+
+/ todo: Slide on what makes ML code ugly and hard to deal with.
 
 // == What to do?
 // You want to start a new project. How do you go about doing it?
@@ -1266,7 +1258,7 @@ Or in code: `wandb.init(mode="offline")`.
 ⏩ Next up: Testing for ML Code!
 
 
-= Testing for ML code
+= Testing for ML code <testing>
 
 == Why/How to do testing for ML code?
 
@@ -1400,7 +1392,7 @@ def test_custom_op_forward_backward(tensor_regression, batch_size: int):
   - SSH multiplexing (reuse an authenticated session — hacky but works), or robot SSH keys restricted to `sbatch runner_job.sh`
 
 
-= Debugging & Profiling
+= Debugging & Profiling <debugging-profiling>
 
 #show outline.entry: it => link(
   it.element.location(),
@@ -1786,6 +1778,77 @@ Unfortunately, your jobs did not run fast enough.
 Your results were inconclusive or unreproducible.
 
 You are not sure what went wrong, but you really want to try better next time.
+
+
+
+== Oh No! Incomprehensible results!
+
+// / *problem*:
+1. Submit a job 1 with `sbatch`
+2. Continue working, improving the python code
+3. Submit a new job 2 with `sbatch`
+4. Results for job 1 are weird?!
+5. Results for job 2 are fine?
+What's going on?
+
+
+
+== Use _Code Checkpointing_ <code_checkpointing>
+
+/ *problem*:
+  1. `sbatch` job A
+  2. Edit Python scripts
+  3. `sbatch` job B
+  4. Job A runs with *modified* code (BAD!)
+  5. Job B runs with modified code
+  6. Results are weird???
+
+*Solution*:
+1. `safe_sbatch`: refuses to submit with uncommitted changes
+2. Job script clones code at the submitted commit ("code checkpointing")
+
+#pagebreak()
+
+Slurm + Git + #ref(<uv>, supplement: "uv") enables easy code checkpointing:
+
+safe_sbatch:
+```bash
+#!/bin/bash
+# safe_sbatch wrapper
+if [ -n "`git status --porcelain`" ]; then
+    echo "Your working directory is dirty! "
+    echo "Please add and commit changes before submitting a job."
+    exit 1
+fi
+export GIT_COMMIT=`git rev-parse HEAD`
+exec sbatch "$@"
+```
+
+```console
+safe_sbatch --gpus=1 --time=3-00:00:00 job.sh
+```
+
+#pagebreak()
+
+Job clones the exact submitted commit into `$SLURM_TMPDIR`, runs from there.
+
+- Venv recreated from uv cache (works offline)
+// - Commands are run in the cloned project
+
+/ *Job.sh*: ```bash
+srun --ntasks-per-node=1 --ntasks=$SLURM_JOB_NUM_NODES bash -e <<END
+    cd $SLURM_TMPDIR
+    git clone $HOME/my_project
+    git -C $SLURM_TMPDIR/my_project checkout --detach $GIT_COMMIT
+    uv sync --directory $SLURM_TMPDIR/my_project
+END
+srun uv run --directory $SLURM_TMPDIR/my_project "$@"
+```
+
+// #align(end + horizon)[
+// ⏩ Let's submit some jobs!
+// ]
+
 
 
 // Please let us know if you have any questions or comments!
