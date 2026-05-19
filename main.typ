@@ -236,12 +236,23 @@ You have a decently-working way to do things, but you are curious about best pra
 // = Introduction
 
 
+// #choices(<failure_end>, [
+//   It's too much trouble. Keep using your laptop.
+// ], <clusters>, [Find more information on this new cluster!], top_part: []
+// )
+
+
+// - _Our job is to help researchers use the compute they have access to, this compute efficiently!_
+
+// - Mila cluster has preemptible long jobs and limited non-preemptible short jobs.
+
+= Connecting to Compute Clusters <connecting>
+
 == Context: Canadian Compute Clusters <clusters>
 
 #let mila(name)  = (table.cell(fill: gray, text(fill: white, name)))
 #let drac(name)  = (table.cell(fill: blue, text(fill: white, name)))
 #let paice(name) = (table.cell(fill: yellow, name))
-
 
 #table(
   stroke: 1pt,
@@ -259,25 +270,13 @@ You have a decently-working way to do things, but you are curious about best pra
   [#paice([Vulcan])],     [16k],    [L40S],     [*\~858*], [5 PB],   [No],
 )
 
-// #choices(<failure_end>, [
-//   It's too much trouble. Keep using your laptop.
-// ], <clusters>, [Find more information on this new cluster!], top_part: []
-// )
 
+// == Context
 
-// - _Our job is to help researchers use the compute they have access to, this compute efficiently!_
+// / TODO: Add an image of struggling researcher.
 
-// - Mila cluster has preemptible long jobs and limited non-preemptible short jobs.
+//   Setting up access to compute clusters can be a bit annoying!
 
-= Connecting to Compute Clusters <connecting>
-
-== Context
-
-/ TODO: Add an image of struggling researcher.
-
-  Setting up access to compute clusters can be a bit annoying!
-
-*Section Outline*
 
 // #show outline.entry: it => link(
 //   it.element.location(),
@@ -287,10 +286,11 @@ You have a decently-working way to do things, but you are curious about best pra
 // )
 // #suboutline(title: "Connecting to Compute Clusters")
 
-1. milatools
-2. mila code
-3. SSH config entries
-4. Typical researcher workflow at Mila
+// *Section Outline*
+// 1. milatools
+// 2. mila code
+// 3. SSH config entries
+// 4. Typical researcher workflow at Mila
 
 == milatools <milatools>
 
@@ -348,7 +348,7 @@ Host mila-cpu
 
 2. Develop iteratively in the VSCode terminal (running on the compute node)
 
-3. Once ready, submit `sbatch` jobs for longer / larger runs
+3. Once ready, use `sbatch` to submit jobs
 
 4. Same loop on other clusters: `--cluster=<cluster>`
 
