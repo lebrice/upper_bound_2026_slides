@@ -1719,7 +1719,7 @@ sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c
 
 == The incredible power of `jax.vmap`
 
-Example of a Jax training loop.
+First: Example of a Jax training loop.
 
 #columns(2)[
   #set text(size: 10pt)
@@ -1746,12 +1746,15 @@ def train(rng, config):
 ```python
 from jax.random import key
 config = Config(...)
-accuracy = train, static_argnums=1)(key(123), config)
+rng = jax.random.key(123)
+accuracy = jax.jit(train)(rng, config)
 ```
 ]
 #pagebreak()
 
+
 Varying seeds would usually works like this (e.g. in pytorch).
+#set text(size: 10pt)
 ```python
 from jax.random import key
 config = Config(...)
@@ -1762,15 +1765,28 @@ accuracy_456 = train(key(456), config)
 Now, behold the power of `jax.vmap`!
 ```python
 rng = key(123)
-
 num_seeds = 2
 rngs = jax.random.split(rng, num_seeds)
 
 train_fn = lambda rng: train(rng, config)
 accuracies = jax.vmap(train_fn)(rngs)  # Vectorize!!
 ```
+#set text(size: 11pt)
 
+_What's the big deal?_ : Vectorization is the *single most efficient way to do N things at once*!
 
+#pagebreak()
+
+Vectorization is the *single most efficient way to do N things at once*!
+
+Advantages of Vectorization (`jax.vmap`) vs Multiprocessing:
+
+- Vectorization: Rewrites the code to use vectorized operations with respect to an argument.
+  - Low-level vectorized instructions (vector_add vs multiple adds)
+  - Reduced context switching on hardware. (Single big matmul vs lots of small cuda kernels)
+- Overhead is minimized (ex. datasets, buffers, anything that is not affected by the vmap-ed argument)
+
+As a result, vectorization is *orders of magnitude faster and more efficient* than multiprocessing.
 
 == Tip: Mixing PyTorch and Jax
 
