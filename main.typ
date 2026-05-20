@@ -37,7 +37,7 @@
 
 #columns(2)[
   *AI Research Institute founded in 2018* to bring together researchers from local institutions, with Yoshua Bengio as scientific director,
-   and now Hugo Larochelle.
+   now Hugo Larochelle.
 
   #v(0.5em)
   #align(center)[
@@ -62,10 +62,9 @@
     // 193 are Professional Master's students (Maîtrise professionnelle)
     [*1358*], [Students],
     [*185*], [Employees
-      - Applied ML Research
-      - AI4Humanity
       - Admin / HR / Staff
-      - IT support, soft. dev. and HPC
+      - Applied ML Research
+      - IT support, IDT, Infra
     ],
     [*176*], [Industry Partners],
     [*41*], [Startups founded by Mila researchers],
