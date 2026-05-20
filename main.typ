@@ -290,7 +290,7 @@ You have a decently-working way to do things, but you are curious about best pra
 
 = Connecting to Compute Clusters <connecting>
 
-== Context: Canadian Compute Clusters <clusters>
+== Canadian Compute Clusters <clusters>
 
 #let mila(name)  = (table.cell(fill: gray, text(fill: white, name)))
 #let drac(name)  = (table.cell(fill: blue, text(fill: white, name)))
@@ -1554,6 +1554,206 @@ VSCode auto-forwards the port → localhost:6006 (with #ref(<mila-code>))
 // ]
 
 
+// == Job Packing
+
+
+= Thank You!
+
+== Thank You!
+#align(center)[
+    Slides + Code
+  #linebreak()
+  #image("images/github_qr_code.png", width:30%)
+  #link("https://github.com/lebrice/upper_bound_2026_slides", "github.com/lebrice/upper_bound_2026_slides")
+]
+
+
+== 🎉 Success! 🎉 <success_end>
+
+You were able to submit all the jobs required for your experiments!
+
+- Your jobs were compact, short, efficient
+- Your code was clean, nicely-typed, well-tested
+- You feel confident, you own your code, you already have ideas for what to do next!
+
+You can expect good results at the next conference cycle! 😉
+🎉
+
+== 😢 Oh No! <failure_end>
+
+Unfortunately, one of these happened:
+
+- your jobs spent a lot of time in the queue and did not run fast enough.
+- your code was impossible for anyone else to understand, so you worked alone
+- Your results were inconclusive or unreproducible.
+
+You are not sure what went wrong, but you really want to try better next time.
+
+
+
+= Extras (overflow slides)
+
+#suboutline(title: "Extras")
+
+
+
+
+== (!!) Run tests with GitHub CI + Slurm Clusters <github_ci_slurm>
+
+// (Possibly unique, never seen this done before).
+
+1. Self-hosted GitHub Runner on a machine with SSH access to the cluster
+2. PR workflow is approved by maintainers → runner submits via `ssh <cluster> sbatch`
+3. Job spawns an *ephemeral GitHub Runner* on a GPU compute node → runs tests → results appear on GitHub!
+
+#align(center)[
+  #image("images/github_ci_example.png", width: 90%)
+]
+
+#align(right)[Example: #ref(<research_template>)]
+
+#pagebreak()
+
+1. Isn't this a security risk?
+  - Somewhat — but maintainers must approve PR workflows, and the runner acts as the user with no extra permissions
+
+2. MFA?
+  - SSH multiplexing (reuse an authenticated session — hacky but works), or robot SSH keys restricted to `sbatch runner_job.sh`
+
+
+
+== Oh No! Incomprehensible results!
+
+// / *problem*:
+1. Submit a job 1 with `sbatch`
+2. Continue working, improving the python code
+3. Submit a new job 2 with `sbatch`
+4. Results for job 1 are weird?!
+5. Results for job 2 are fine?
+What's going on?
+
+
+
+== Use _Code Checkpointing_ <code_checkpointing>
+
+/ *problem*:
+  1. `sbatch` job A
+  2. Edit Python scripts
+  3. `sbatch` job B
+  4. Job A runs with *modified* code (BAD!)
+  5. Job B runs with modified code
+  6. Results are weird???
+
+*Solution*:
+1. `safe_sbatch`: refuses to submit with uncommitted changes
+2. Job script clones code at the submitted commit ("code checkpointing")
+
+#pagebreak()
+
+Slurm + Git + #ref(<uv>, supplement: "uv") enables easy code checkpointing:
+
+safe_sbatch:
+```bash
+#!/bin/bash
+# safe_sbatch wrapper
+if [ -n "`git status --porcelain`" ]; then
+    echo "Your working directory is dirty! "
+    echo "Please add and commit changes before submitting a job."
+    exit 1
+fi
+export GIT_COMMIT=`git rev-parse HEAD`
+exec sbatch "$@"
+```
+
+```console
+safe_sbatch --gpus=1 --time=3-00:00:00 job.sh
+```
+
+#pagebreak()
+
+Job clones the exact submitted commit into `$SLURM_TMPDIR`, runs from there.
+
+- Venv recreated from uv cache (works offline)
+// - Commands are run in the cloned project
+
+/ *Job.sh*: ```bash
+srun --ntasks-per-node=1 --ntasks=$SLURM_JOB_NUM_NODES bash -e <<END
+    cd $SLURM_TMPDIR
+    git clone $HOME/my_project
+    git -C $SLURM_TMPDIR/my_project checkout --detach $GIT_COMMIT
+    uv sync --directory $SLURM_TMPDIR/my_project
+END
+srun uv run --directory $SLURM_TMPDIR/my_project "$@"
+```
+
+
+
+
+== Use Job Dependencies to prevent waste <job_dependencies>
+
+*Problem*: Some jobs fail → downstream jobs waste resources
+
+/ todo: Add a Simple DAG diagram to illustrate job dependencies?
+
+
+
+Pairs nicely with #ref(<job_submission>):
+
+```bash
+# Hyper-parameter sweep
+jobid_a=$(sbatch --parsable job.sh --lr=0.01)
+jobid_b=$(sbatch --parsable job.sh --lr=0.02)
+jobid_c=$(sbatch --parsable job.sh --lr=0.03)
+
+# Train once with best hyper-parameters, *only if all runs succeed*!
+sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c \
+        job.sh --lr=best
+```
+
+
+== Tip: Mixing PyTorch and Jax
+
+Use both, get the best of both worlds:
+
+- #link("https://github.com/mila-iqia/torch_jax_interop", "torch-jax-interop") (Mila)
+  - `dlpack` API → zero-copy GPU conversion
+
+```python
+import torch
+import jax.numpy as jnp
+from torch_jax_interop import jax_to_torch, torch_to_jax
+
+@jax_to_torch
+def some_jax_function(x: jnp.ndarray) -> jnp.ndarray:
+    return x + jnp.ones_like(x)
+
+some_torch_tensor = torch.arange(5, device="cuda")
+torch_output = some_jax_function(some_torch_tensor)
+```
+
+Also: #link("https://github.com/google/torchax", "torchax") (Google, different approach)
+
+
+== Wandb Artifacts and Sweeps
+
+- *Artifacts*: version datasets, checkpoints, results
+  ```python
+  artifact = wandb.Artifact("model-v1", type="model")
+  artifact.add_file("checkpoint.pt")
+  run.log_artifact(artifact)
+  ```
+
+- *Sweeps*: distributed hyperparameter search — controller + many agents
+  ```bash
+  wandb sweep sweep.yaml          # define search space, returns sweep ID
+  wandb agent <entity>/<project>/<sweep_id>   # run on each compute node
+  ```
+
+- `WANDB_SILENT=true` → cleaner job `.out` files
+- `WANDB_DIR=$SLURM_TMPDIR` → run files on fast local storage
+
+
+
 == Dataloader Bottlenecks
 
 
@@ -1730,273 +1930,6 @@ srun --ntasks=1 cp -r $SLURM_TMPDIR/final_results $SCRATCH/$SLURM_JOB_ID
 Prefer: WebDataset (`.tar` shards), HDF5, or SQLite.
 
 
-
-== RL With Simulation on CPU
-
-#align(center)[
-  #fletcher.diagram(
-    node-stroke: 0.8pt,
-    spacing: (3em, 1.2em),
-    node((0, 0), [ENV worker 0], fill: green.lighten(70%), shape: rect),
-    node((0, 1), [ENV worker 1], fill: green.lighten(70%), shape: rect),
-    node((0, 2), [ENV worker 2], fill: green.lighten(70%), shape: rect),
-    node((2, 1), [Replay\ Buffer], fill: yellow.lighten(60%)),
-    node((4, 1), [GPU Policy\ (training)], fill: blue.lighten(70%)),
-    edge((0, 0), (2, 1), "->", label: [experience]),
-    edge((0, 1), (2, 1), "->"),
-    edge((0, 2), (2, 1), "->"),
-    edge((2, 1), (4, 1), "->", label: [batch]),
-    edge((4, 1), (0, 0), "->", label: [new weights], bend: -35deg),
-    edge((4, 1), (0, 1), "..>", label: [], bend: -35deg),
-    edge((4, 1), (0, 2), "..>", label: [], bend: -35deg),
-    // edge((4, 1), (0, 1), "->"),
-    // edge((4, 1), (0, 2), "->", bend: -35deg),
-  )
-]
-
-*Problem*: NumPy and other libraries used in env worker auto-detect `num_threads = num_cpus`!
-- `N x n_cpus` threads on `n_cpus` cores → context-switching → *slower jobs*!
-
-// *Fix*:
-```bash
-export OMP_NUM_THREADS=1   # <-- Simple solution!
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK   # <-- Better!
-```
-
-// == Job Packing
-
-
-
-= Thank You!
-
-== Thank You!
-#align(center)[
-    Slides + Code
-  #linebreak()
-  #image("images/github_qr_code.png", width:30%)
-  #link("https://github.com/lebrice/upper_bound_2026_slides", "github.com/lebrice/upper_bound_2026_slides")
-]
-
-
-== 🎉 Success! 🎉 <success_end>
-
-You were able to submit all the jobs required for your experiments!
-
-- Your jobs were compact, short, efficient
-- Your code was clean, nicely-typed, well-tested
-- You feel confident, you own your code, you already have ideas for what to do next!
-
-You can expect good results at the next conference cycle! 😉
-🎉
-
-== 😢 Oh No! <failure_end>
-
-Unfortunately, your jobs did not run fast enough.
-Your results were inconclusive or unreproducible.
-
-You are not sure what went wrong, but you really want to try better next time.
-
-
-
-== Oh No! Incomprehensible results!
-
-// / *problem*:
-1. Submit a job 1 with `sbatch`
-2. Continue working, improving the python code
-3. Submit a new job 2 with `sbatch`
-4. Results for job 1 are weird?!
-5. Results for job 2 are fine?
-What's going on?
-
-
-
-== Use _Code Checkpointing_ <code_checkpointing>
-
-/ *problem*:
-  1. `sbatch` job A
-  2. Edit Python scripts
-  3. `sbatch` job B
-  4. Job A runs with *modified* code (BAD!)
-  5. Job B runs with modified code
-  6. Results are weird???
-
-*Solution*:
-1. `safe_sbatch`: refuses to submit with uncommitted changes
-2. Job script clones code at the submitted commit ("code checkpointing")
-
-#pagebreak()
-
-Slurm + Git + #ref(<uv>, supplement: "uv") enables easy code checkpointing:
-
-safe_sbatch:
-```bash
-#!/bin/bash
-# safe_sbatch wrapper
-if [ -n "`git status --porcelain`" ]; then
-    echo "Your working directory is dirty! "
-    echo "Please add and commit changes before submitting a job."
-    exit 1
-fi
-export GIT_COMMIT=`git rev-parse HEAD`
-exec sbatch "$@"
-```
-
-```console
-safe_sbatch --gpus=1 --time=3-00:00:00 job.sh
-```
-
-#pagebreak()
-
-Job clones the exact submitted commit into `$SLURM_TMPDIR`, runs from there.
-
-- Venv recreated from uv cache (works offline)
-// - Commands are run in the cloned project
-
-/ *Job.sh*: ```bash
-srun --ntasks-per-node=1 --ntasks=$SLURM_JOB_NUM_NODES bash -e <<END
-    cd $SLURM_TMPDIR
-    git clone $HOME/my_project
-    git -C $SLURM_TMPDIR/my_project checkout --detach $GIT_COMMIT
-    uv sync --directory $SLURM_TMPDIR/my_project
-END
-srun uv run --directory $SLURM_TMPDIR/my_project "$@"
-```
-
-// #align(end + horizon)[
-// ⏩ Let's submit some jobs!
-// ]
-
-
-
-// Please let us know if you have any questions or comments!
-
-// = Q&A
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-= Extras (overflow slides)
-
-#suboutline(title: "Extras")
-
-
-
-
-== (!!) Run tests with GitHub CI + Slurm Clusters <github_ci_slurm>
-
-// (Possibly unique, never seen this done before).
-
-1. Self-hosted GitHub Runner on a machine with SSH access to the cluster
-2. PR workflow is approved by maintainers → runner submits via `ssh <cluster> sbatch`
-3. Job spawns an *ephemeral GitHub Runner* on a GPU compute node → runs tests → results appear on GitHub!
-
-#align(center)[
-  #image("images/github_ci_example.png", width: 90%)
-]
-
-#align(right)[Example: #ref(<research_template>)]
-
-#pagebreak()
-
-1. Isn't this a security risk?
-  - Somewhat — but maintainers must approve PR workflows, and the runner acts as the user with no extra permissions
-
-2. MFA?
-  - SSH multiplexing (reuse an authenticated session — hacky but works), or robot SSH keys restricted to `sbatch runner_job.sh`
-
-
-== Use Job Dependencies to prevent waste <job_dependencies>
-
-*Problem*: Some jobs fail → downstream jobs waste resources
-
-/ todo: Add a Simple DAG diagram to illustrate job dependencies?
-
-
-
-Pairs nicely with #ref(<job_submission>):
-
-```bash
-# Hyper-parameter sweep
-jobid_a=$(sbatch --parsable job.sh --lr=0.01)
-jobid_b=$(sbatch --parsable job.sh --lr=0.02)
-jobid_c=$(sbatch --parsable job.sh --lr=0.03)
-
-# Train once with best hyper-parameters, *only if all runs succeed*!
-sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c \
-        job.sh --lr=best
-```
-
-
-== Tip: Mixing PyTorch and Jax
-
-Use both, get the best of both worlds:
-
-- #link("https://github.com/mila-iqia/torch_jax_interop", "torch-jax-interop") (Mila)
-  - `dlpack` API → zero-copy GPU conversion
-
-```python
-import torch
-import jax.numpy as jnp
-from torch_jax_interop import jax_to_torch, torch_to_jax
-
-@jax_to_torch
-def some_jax_function(x: jnp.ndarray) -> jnp.ndarray:
-    return x + jnp.ones_like(x)
-
-some_torch_tensor = torch.arange(5, device="cuda")
-torch_output = some_jax_function(some_torch_tensor)
-```
-
-Also: #link("https://github.com/google/torchax", "torchax") (Google, different approach)
-
-
-== Wandb Artifacts and Sweeps
-
-- *Artifacts*: version datasets, checkpoints, results
-  ```python
-  artifact = wandb.Artifact("model-v1", type="model")
-  artifact.add_file("checkpoint.pt")
-  run.log_artifact(artifact)
-  ```
-
-- *Sweeps*: distributed hyperparameter search — controller + many agents
-  ```bash
-  wandb sweep sweep.yaml          # define search space, returns sweep ID
-  wandb agent <entity>/<project>/<sweep_id>   # run on each compute node
-  ```
-
-- `WANDB_SILENT=true` → cleaner job `.out` files
-- `WANDB_DIR=$SLURM_TMPDIR` → run files on fast local storage
-
-
-
-
 == Efficient Checkpointing <efficient-checkpointing>
 
 Large multi-GPU models → `torch.distributed.checkpoint`. Each rank saves/loads its shard *in parallel*!
@@ -2096,6 +2029,39 @@ for batch in dataloader:
 Excellent guide (*must read*!): https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html
 
 *Still GPU-starved after this?* Look at #link("https://github.com/libffcv/ffcv", "FFCV") or #link("https://developer.nvidia.com/dali", "NVIDIA DALI") (input processing on the GPU)
+
+
+== RL With Simulation on CPU
+
+#align(center)[
+  #fletcher.diagram(
+    node-stroke: 0.8pt,
+    spacing: (3em, 1.2em),
+    node((0, 0), [ENV worker 0], fill: green.lighten(70%), shape: rect),
+    node((0, 1), [ENV worker 1], fill: green.lighten(70%), shape: rect),
+    node((0, 2), [ENV worker 2], fill: green.lighten(70%), shape: rect),
+    node((2, 1), [Replay\ Buffer], fill: yellow.lighten(60%)),
+    node((4, 1), [GPU Policy\ (training)], fill: blue.lighten(70%)),
+    edge((0, 0), (2, 1), "->", label: [experience]),
+    edge((0, 1), (2, 1), "->"),
+    edge((0, 2), (2, 1), "->"),
+    edge((2, 1), (4, 1), "->", label: [batch]),
+    edge((4, 1), (0, 0), "->", label: [new weights], bend: -35deg),
+    edge((4, 1), (0, 1), "..>", label: [], bend: -35deg),
+    edge((4, 1), (0, 2), "..>", label: [], bend: -35deg),
+    // edge((4, 1), (0, 1), "->"),
+    // edge((4, 1), (0, 2), "->", bend: -35deg),
+  )
+]
+
+*Problem*: NumPy and other libraries used in env worker auto-detect `num_threads = num_cpus`!
+- `N x n_cpus` threads on `n_cpus` cores → context-switching → *slower jobs*!
+
+// *Fix*:
+```bash
+export OMP_NUM_THREADS=1   # <-- Simple solution!
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK   # <-- Better!
+```
 
 
 
