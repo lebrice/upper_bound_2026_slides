@@ -125,6 +125,9 @@ Idea: Roughly organized as an _Adventure Book_!
 )]
 
 
+
+#outline(title: "Topics")
+
 == About _you_!
 
 
@@ -215,8 +218,6 @@ You have a decently-working way to do things, but you are curious about best pra
   It could very well help you get your results faster!]
 )
 
-
-#outline(title: "Topics")
 
 
 // What this talk *is* about:
@@ -396,7 +397,7 @@ Host mila-cpu
 
 #choices(
   <uv>,
-  [Setup a neat, new Python project],
+  [Use UV to make your project work on all clusters],
   <slurm>,
   [Learn some neat Slurm tips and tricks],
   left_title: "⏪ Take the left road!",
@@ -411,10 +412,13 @@ Host mila-cpu
 = Managing Python Projects (with uv)
 // #suboutline(title: "Managing Python Projects")
 
-== Python Environments Are Messy!
+== Python Projects Are Messy
 
 
-// / todo : Add an image of a messy python ecosystem, difficult to manage dependencies, Conda not being allowed on DRAC, Containers being hard to use, etc.
+
+Ideally, you want a way to easily setup the exact same project/environment on all the clusters...
+
+Containers do that, but are a bit clumsy to work with at first.
 
 
 * In this section: *
@@ -423,6 +427,7 @@ Host mila-cpu
 2. Example: uv + PyTorch
 3. uv on DRAC clusters
 4. Example: uv + Flash-Attention
+5. Sneak-peek at `cluv` (ongoing work at Mila)
 
 == Why uv? <uv>
 #columns(2)[
@@ -610,6 +615,23 @@ FLASH_ATTENTION_SKIP_CUDA_BUILD = "0"
 TORCH_CUDA_ARCH_LIST = "9.0"
 ```
 
+== Ongoing work at Mila: cluv <cluv>
+
+From *Cl*~uster + *UV*: CLI to dispatch jobs and sync uv projects across Slurm clusters.
+
+- Setup: `cluv login`, `cluv sync`, `cluv status`
+- Run: `cluv run <cluster> <command>`
+- Submit: `cluv submit <cluster> <job_script> [args]`
+  - use `first` instead of `<cluster>` to dispatch to all clustes and keep first running job
+
+// #image(https://docs.pytorch.org/tutorials/_static/img/profiler_rocm_chrome_trace_view.png)
+
+Learn more at https://github.com/mila-iqia/cluv
+
+/ live demo :
+  ```bash
+  cluv submit first job.sh -- python main.py
+  ```
 
 
 == Result: Your new Python setup
@@ -944,34 +966,51 @@ Things are looking up!
   [Run and Debug the code to understand it better],
   <clean-code>,
   [
-    Clean-up the code using new libraries
+    Clean-up the code, make it nice and readable
   ],
   <testing>,
   [Write some tests before doing anything],
+  mid_title: "⏫ Go Up!",
   top_part: [
-  We just received some confusing code from a colleague.
+    We just received some confusing code from a colleague.
 
-  You
-]
+    It sort-of works, maybe? You're not sure.
+  ],
 )
 
-#align(bottom + right)[
-⏩ Next up: Writing Cleaner ML Code!
-]
+
+
+
+
 
 = Libraries for Cleaner ML Code <clean-code>
 
-#show outline.entry: it => link(
-  it.element.location(),
-  // Keep just the body, dropping
-  // the fill and the page.
-  it.indented(it.prefix()+[#h(0.5em)], it.body()),
-)
-#suboutline(title: "Writing Cleaner ML Code")
+// #show outline.entry: it => link(
+//   it.element.location(),
+//   // Keep just the body, dropping
+//   // the fill and the page.
+//   it.indented(it.prefix()+[#h(0.5em)], it.body()),
+// )
+// #suboutline(title: "Writing Cleaner ML Code")
 
-==
+== Libraries for Cleaner ML Code
 
-/ todo: Slide on what makes ML code ugly and hard to deal with.
+ML code can be very hard to read and write!
+
+"ML code" := tensor logic, neural networks, etc
+
+A small taster of some libraries that make ML code much nicer to read and write:
+
+
+- Einops
+- Tensordict
+- Jaxtyping
+
+
+Misc.:
+- Config Management / Argument Parsing
+- Weights and Biases
+
 
 // == What to do?
 // You want to start a new project. How do you go about doing it?
@@ -1098,10 +1137,14 @@ class Batch:
     x: Images
     y: Labels
 ```
+#set text(size: 11pt)
 
 #pagebreak()
 
-Runtime-checkable with `beartype` (or `typeguard`):
+Checks an be enforced at runtime with `beartype` or `typeguard`:
+
+
+For example while running tests:
 
 ```toml
 #pyproject.toml
@@ -1156,7 +1199,7 @@ def patchify(images: Float[Tensor, "b c h w"], p: int,
 ```
 
 
-== Config / Argument Parsing
+== Extra: Config / Argument Parsing
 
 Recommendations, from simplest to most complex
 
@@ -1242,25 +1285,6 @@ wandb sync --sync-all
 Or in code: `wandb.init(mode="offline")`.
 
 
-#pagebreak()
-
-- *Artifacts*: version datasets, checkpoints, results
-  ```python
-  artifact = wandb.Artifact("model-v1", type="model")
-  artifact.add_file("checkpoint.pt")
-  run.log_artifact(artifact)
-  ```
-
-- *Sweeps*: distributed hyperparameter search — controller + many agents
-  ```bash
-  wandb sweep sweep.yaml          # define search space, returns sweep ID
-  wandb agent <entity>/<project>/<sweep_id>   # run on each compute node
-  ```
-
-- `WANDB_SILENT=true` → cleaner job `.out` files
-- `WANDB_DIR=$SLURM_TMPDIR` → run files on fast local storage
-
-
 ⏩ Next up: Testing for ML Code!
 
 
@@ -1281,11 +1305,12 @@ You already _do_ testing!
 
 - Common sanity-checks in ML:
   - *Overfitting test*
+    - Also works in RL!
   - Checkpoint / resuming
   - 1 / 2 / 4 GPUs, multi-node
 
 #align(right + horizon)[
-*How to write tests for these?*
+⏩ *How to write such tests in practice?*
 ]
 
 == Simple Testing for ML
@@ -1383,27 +1408,15 @@ def test_custom_op_forward_backward(tensor_regression, batch_size: int):
 
 *Step 2*: Iterative debug/optimize — instantly know if you break fwd/bwd!
 
-== (!!) Run tests with GitHub CI + Slurm Clusters <github_ci_slurm>
+== Result: Testing for ML
 
-// (Possibly unique, never seen this done before).
+You are now able to write tests for your ML code!
 
-1. Self-hosted GitHub Runner on a machine with SSH access to the cluster
-2. PR workflow is approved by maintainers → runner submits via `ssh <cluster> sbatch`
-3. Job spawns an *ephemeral GitHub Runner* on a GPU compute node → runs tests → results appear on GitHub!
 
-#align(center)[
-  #image("images/github_ci_example.png", width: 90%)
-]
+Some of you might even consider writing tests _*before*_ writing algorithms!
+(Some of you would be right!)
 
-#align(right)[Example: #ref(<research_template>)]
 
-#pagebreak()
-
-1. Isn't this a security risk?
-  - Somewhat — but maintainers must approve PR workflows, and the runner acts as the user with no extra permissions
-
-2. MFA?
-  - SSH multiplexing (reuse an authenticated session — hacky but works), or robot SSH keys restricted to `sbatch runner_job.sh`
 
 
 = Debugging & Profiling <debugging-profiling>
@@ -1752,27 +1765,17 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK   # <-- Better!
 
 // == Job Packing
 
-== Ongoing work: cluv <cluv>
-
-From *Cl*~uster + *UV*: CLI to dispatch jobs and sync uv projects across Slurm clusters.
-
-- Setup: `cluv login`, `cluv sync`, `cluv status`
-- Run: `cluv run <cluster> <command>`
-- Submit: `cluv submit <cluster> <job_script> [args]`
-  - use `first` instead of `<cluster>` to dispatch to all clustes and keep first running job
-
-// #image(https://docs.pytorch.org/tutorials/_static/img/profiler_rocm_chrome_trace_view.png)
-
-Learn more at https://github.com/mila-iqia/cluv
-
-/ live demo :
-  ```bash
-  cluv submit first job.sh -- python main.py
-  ```
 
 
 = Thank You!
 
+== Thank You!
+#align(center)[
+    Slides + Code
+  #linebreak()
+  #image("images/github_qr_code.png", width:30%)
+  #link("https://github.com/lebrice/upper_bound_2026_slides", "github.com/lebrice/upper_bound_2026_slides")
+]
 
 
 == 🎉 Success! 🎉 <success_end>
@@ -1868,9 +1871,65 @@ srun uv run --directory $SLURM_TMPDIR/my_project "$@"
 // Please let us know if you have any questions or comments!
 
 // = Q&A
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 = Extras (overflow slides)
 
 #suboutline(title: "Extras")
+
+
+
+
+== (!!) Run tests with GitHub CI + Slurm Clusters <github_ci_slurm>
+
+// (Possibly unique, never seen this done before).
+
+1. Self-hosted GitHub Runner on a machine with SSH access to the cluster
+2. PR workflow is approved by maintainers → runner submits via `ssh <cluster> sbatch`
+3. Job spawns an *ephemeral GitHub Runner* on a GPU compute node → runs tests → results appear on GitHub!
+
+#align(center)[
+  #image("images/github_ci_example.png", width: 90%)
+]
+
+#align(right)[Example: #ref(<research_template>)]
+
+#pagebreak()
+
+1. Isn't this a security risk?
+  - Somewhat — but maintainers must approve PR workflows, and the runner acts as the user with no extra permissions
+
+2. MFA?
+  - SSH multiplexing (reuse an authenticated session — hacky but works), or robot SSH keys restricted to `sbatch runner_job.sh`
+
 
 == Use Job Dependencies to prevent waste <job_dependencies>
 
@@ -1915,6 +1974,25 @@ torch_output = some_jax_function(some_torch_tensor)
 ```
 
 Also: #link("https://github.com/google/torchax", "torchax") (Google, different approach)
+
+
+== Wandb Artifacts and Sweeps
+
+- *Artifacts*: version datasets, checkpoints, results
+  ```python
+  artifact = wandb.Artifact("model-v1", type="model")
+  artifact.add_file("checkpoint.pt")
+  run.log_artifact(artifact)
+  ```
+
+- *Sweeps*: distributed hyperparameter search — controller + many agents
+  ```bash
+  wandb sweep sweep.yaml          # define search space, returns sweep ID
+  wandb agent <entity>/<project>/<sweep_id>   # run on each compute node
+  ```
+
+- `WANDB_SILENT=true` → cleaner job `.out` files
+- `WANDB_DIR=$SLURM_TMPDIR` → run files on fast local storage
 
 
 
