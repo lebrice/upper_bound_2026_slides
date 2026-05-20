@@ -127,7 +127,7 @@ Idea: Roughly organized as an _Adventure Book_!
 
 #outline(title: "Topics")
 
-== About _you_!
+== About _you_! <start>
 
 
 // == Intended Audience
@@ -1588,6 +1588,13 @@ Unfortunately, one of these happened:
 
 You are not sure what went wrong, but you really want to try better next time.
 
+#align(center + horizon)[
+  #link(<start>, rect(fill: blue.lighten(90%), stroke: blue)[
+          Try again!
+          #linebreak()
+    ]
+  )
+]
 
 
 = Extras (overflow slides)
@@ -1739,9 +1746,7 @@ def train(rng, config):
 ```python
 from jax.random import key
 config = Config(...)
-# Varying seeds usually works like this:
-accuracy = jax.jit(train)(key(123), config)
-performance_456 = train(key(456), config)
+accuracy = train, static_argnums=1)(key(123), config)
 ```
 ]
 #pagebreak()
@@ -1750,23 +1755,19 @@ Varying seeds would usually works like this (e.g. in pytorch).
 ```python
 from jax.random import key
 config = Config(...)
-accuracy = jax.jit(train)(key(123), config)
-performance_456 = train(key(456), config)
+accuracy_123 = train(key(123), config)
+accuracy_456 = train(key(456), config)
 ```
 
-
-MUCH BETTER:
+Now, behold the power of `jax.vmap`!
 ```python
-config = Config(...)
+rng = key(123)
+
 num_seeds = 2
+rngs = jax.random.split(rng, num_seeds)
 
 train_fn = lambda rng: train(rng, config)
-train_fn = jax.vmap(train_fn)  # Vectorize!!
-
-rng = key(123)
-rngs = jax.random.split(rng, num_seeds)
-performances = train_fn(rngs)
-
+accuracies = jax.vmap(train_fn)(rngs)  # Vectorize!!
 ```
 
 
