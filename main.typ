@@ -1710,6 +1710,67 @@ sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c
 ```
 
 
+== The incredible power of `jax.vmap`
+
+Example of a Jax training loop.
+
+#columns(2)[
+  #set text(size: 10pt)
+```python
+import jax
+import jax.numpy as jnp
+
+def training_epoch(state, epoch: int):
+  # does one training epoch.
+  return new_state, metrics
+
+def train(rng, config):
+  initial_state = some_fn(rng, config)
+  final_state = jax.lax.scan(
+    training_epoch,
+    init=initial_state,
+    xs=jnp.arange(config.num_epochs),
+  )
+  accuracy = evaluate(final_state)
+  return accuracy
+```
+#colbreak()
+
+```python
+from jax.random import key
+config = Config(...)
+# Varying seeds usually works like this:
+accuracy = jax.jit(train)(key(123), config)
+performance_456 = train(key(456), config)
+```
+]
+#pagebreak()
+
+Varying seeds would usually works like this (e.g. in pytorch).
+```python
+from jax.random import key
+config = Config(...)
+accuracy = jax.jit(train)(key(123), config)
+performance_456 = train(key(456), config)
+```
+
+
+MUCH BETTER:
+```python
+config = Config(...)
+num_seeds = 2
+
+train_fn = lambda rng: train(rng, config)
+train_fn = jax.vmap(train_fn)  # Vectorize!!
+
+rng = key(123)
+rngs = jax.random.split(rng, num_seeds)
+performances = train_fn(rngs)
+
+```
+
+
+
 == Tip: Mixing PyTorch and Jax
 
 Use both, get the best of both worlds:
