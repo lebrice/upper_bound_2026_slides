@@ -558,7 +558,7 @@ Tip: Use DRAC wheelhouse by default; PyPI only as needed:
 // )
 
 
-Other approach: use the DRAC wheelhouse when convenient (for example, `flash-attn`)
+Other approach: use the DRAC wheelhouse when convenient (for example, #ref(<uv-flash_attn>, supplement: `flash-attn`))
 
 ```toml
 # pyproject.toml
@@ -574,44 +574,6 @@ flash-attn = { index = "drac-gentoo2023-generic" }
 ```
 
 #pagebreak()
-
-== Tip: UV + Flash-attn
-
-// Flash-Attention pain points:
-// - Pre-built wheels not always available
-- Building from source = 100s of threads, very slow (*don't do this on login nodes!*)
-
-*Solution \#1*: Prebuilt wheel from DRAC wheelhouse (DRAC only)
-
-// / TODO: Show a config that uses the DRAC wheelhouse when --extra drac and also works otherwise?
-
-```toml
-# pyproject.toml
-[[tool.uv.index]]
-name = "drac-gentoo2023-generic"
-url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/generic"
-format = "flat"
-explicit = true
-
-[tool.uv.sources]
-# Use the pre-built wheel for flash-attn from the DRAC wheelhouse
-flash-attn = { index = "drac-gentoo2023-generic" }
-```
-
-
-#pagebreak()
-
-*Solution \#2*: Build from source.
-
-/ Tip: uv allows setting environment variables when building specific packages!
-
-```toml
-#pyproject.toml
-[tool.uv.extra-build-variables.flash-attn]
-MAX_JOBS = "1"
-FLASH_ATTENTION_SKIP_CUDA_BUILD = "0"
-TORCH_CUDA_ARCH_LIST = "9.0"
-```
 
 == Ongoing work at Mila: cluv <cluv>
 
@@ -954,9 +916,9 @@ previous_job_id = int(os.environ["SLURM_JOB_DEPENDENCY"].removeprefix("afterok:"
 
 == Result: Slurm tips & Tricks
 
-In addition to being able to connect and run code interactively on a compute node,
+In addition to being able to connect and run code interactively on a compute node, and manage your Python project with uv,
 
-You are now able to submit jobs that are Compact, Flexible, and Short!
+*You are now able to submit jobs that are Compact, Flexible, and Short!*
 
 Your jobs get scheduled much faster.
 Things are looking up!
@@ -972,7 +934,7 @@ Things are looking up!
   [Write some tests before doing anything],
   mid_title: "⏫ Go Up!",
   top_part: [
-    We just received some confusing code from a colleague.
+    We just received some confusing baseline code from a colleague.
 
     It sort-of works, maybe? You're not sure.
   ],
@@ -1144,7 +1106,7 @@ class Batch:
 Checks an be enforced at runtime with `beartype` or `typeguard`:
 
 
-For example while running tests:
+For example while running tests (See #ref(<testing>))
 
 ```toml
 #pyproject.toml
@@ -1220,7 +1182,8 @@ Recommendations, from simplest to most complex
 Lots of other great options!
 
 
-== Weights & Biases (WandB) <wandb>
+== Slurm & Weights & Biases (WandB) <wandb>
+
 
 #link("https://wandb.ai", "WandB") is amazing! Consider trying it!
 
@@ -1416,8 +1379,15 @@ You are now able to write tests for your ML code!
 Some of you might even consider writing tests _*before*_ writing algorithms!
 (Some of you would be right!)
 
+#align(horizon)[
+You wrote some tests for your ML code. All is well.
 
+However, as you keep working, you encounter some unexpected behaviour!
 
+#align(right)[
+⏩ Next up: _How to debug this?_
+]
+]
 
 = Debugging & Profiling <debugging-profiling>
 
@@ -1715,6 +1685,44 @@ jobid_c=$(sbatch --parsable job.sh --lr=0.03)
 # Train once with best hyper-parameters, *only if all runs succeed*!
 sbatch --kill-on-invalid-dep=yes --dependency=afterok:$jobid_a,$jobid_b,$jobid_c \
         job.sh --lr=best
+```
+
+== Tip: UV + Flash-attn <uv-flash_attn>
+
+// Flash-Attention pain points:
+// - Pre-built wheels not always available
+- Building from source = 100s of threads, very slow (*don't do this on login nodes!*)
+
+*Solution \#1*: Prebuilt wheel from DRAC wheelhouse (DRAC only)
+
+// / TODO: Show a config that uses the DRAC wheelhouse when --extra drac and also works otherwise?
+
+```toml
+# pyproject.toml
+[[tool.uv.index]]
+name = "drac-gentoo2023-generic"
+url = "/cvmfs/soft.computecanada.ca/custom/python/wheelhouse/gentoo2023/generic"
+format = "flat"
+explicit = true
+
+[tool.uv.sources]
+# Use the pre-built wheel for flash-attn from the DRAC wheelhouse
+flash-attn = { index = "drac-gentoo2023-generic" }
+```
+
+
+#pagebreak()
+
+*Solution \#2*: Build from source.
+
+/ Tip: uv allows setting environment variables when building specific packages!
+
+```toml
+#pyproject.toml
+[tool.uv.extra-build-variables.flash-attn]
+MAX_JOBS = "1"
+FLASH_ATTENTION_SKIP_CUDA_BUILD = "0"
+TORCH_CUDA_ARCH_LIST = "9.0"
 ```
 
 
