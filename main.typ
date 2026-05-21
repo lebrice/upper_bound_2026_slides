@@ -64,7 +64,7 @@
     [*185*], [Employees
       - Admin / HR / Staff
       - Applied ML Research
-      - IT support, IDT, Infra
+      - IT support, IDT, Infra, BRDG
     ],
     [*176*], [Industry Partners],
     [*41*], [Startups founded by Mila researchers],
@@ -360,7 +360,7 @@ Install: `uv tool install milatools`, or `pip install milatools`
   - Opens `my_project` in VSCode via Remote-SSH on the compute node
 
 
-/ live demo: `mila code repos/upper_bound_2026_slides --cluster=mila --salloc --gpus=4 --mem=16G --time=06:00:00`
+/ live demo: `mila code --cluster=mila --salloc --mem=8G --time=2:00:00`
 
 == Useful SSH Config Entries <mila-cpu>
 
