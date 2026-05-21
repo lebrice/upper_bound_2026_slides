@@ -107,19 +107,19 @@ Idea: Roughly organized as an _Adventure Book_!
 #align(horizon)[
 #columns(2,
   [
+    #colbreak()
     #align(center)[
     Slides + Code
     #linebreak()
     #image("images/github_qr_code.png", width:30%)
     #link("https://github.com/lebrice/upper_bound_2026_slides", "github.com/lebrice/upper_bound_2026_slides")
     ]
-    #colbreak()
-    #align(center)[
-    Q&A with Slido
-    #linebreak()
-    #image("images/QR_Code_Slido.png", width:40%)
-    #link("https://app.sli.do/event/9c6SVnBwxftYKfCzfihNts", "app.sli.do/event/9c6SVnBwxftYKfCzfihNts")
-    ]
+    // #align(center)[
+    // Q&A with Slido
+    // #linebreak()
+    // #image("images/QR_Code_Slido.png", width:40%)
+    // #link("https://app.sli.do/event/9c6SVnBwxftYKfCzfihNts", "app.sli.do/event/9c6SVnBwxftYKfCzfihNts")
+    // ]
   ]
 )]
 
@@ -627,7 +627,7 @@ From *Cl*~uster + *UV*: CLI to dispatch jobs and sync uv projects across Slurm c
 
 / live demo :
   ```bash
-  cluv submit first job.sh -- python main.py
+  cluv submit first scripts/job.sh -- python main.py --help
   ```
 
 #align(right + horizon)[Learn more at https://github.com/mila-iqia/cluv]
