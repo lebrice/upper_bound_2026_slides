@@ -76,7 +76,7 @@
 *Innovation, Development and Technology*
 
 - Help Researchers use compute resources efficiently
-- Build software tools, Documentation, tutorial sessions, in-person help
+- Build software tools, documentation, tutorial sessions, in-person help
 
 *About Me*:
 Fabrice Normandin, Research #strike([Engineer])  Scientist 🎉
