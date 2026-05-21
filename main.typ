@@ -411,13 +411,12 @@ Host mila-cpu
 = Managing Python Projects (with uv)
 // #suboutline(title: "Managing Python Projects")
 
-== Python Projects Are Messy
+== Python Projects Are Messy!
 
 
+Ideal setup would work on all clusters.
 
-Ideally, you want a way to easily setup the exact same project/environment on all the clusters...
-
-Containers do that, but are a bit clumsy to work with at first.
+Containers have a learning curve and are not that easy to use on Slurm clusters.
 
 
 * In this section: *
@@ -625,13 +624,16 @@ From *Cl*~uster + *UV*: CLI to dispatch jobs and sync uv projects across Slurm c
 
 // #image(https://docs.pytorch.org/tutorials/_static/img/profiler_rocm_chrome_trace_view.png)
 
-Learn more at https://github.com/mila-iqia/cluv
 
 / live demo :
   ```bash
   cluv submit first job.sh -- python main.py
   ```
 
+#align(right + horizon)[Learn more at https://github.com/mila-iqia/cluv]
+
+#pagebreak()
+#image("images/cluv.png")
 
 == Result: Your new Python setup
 
@@ -650,10 +652,9 @@ Learn more at https://github.com/mila-iqia/cluv
   top_part: [
   Your project is now setup properly! *You want to run some experiments!*
 
-  You find an intriguing tome. The inscription reads "Slurm Tips & Tricks".
+  On your journey, you find an intriguing tome. The inscription reads "Slurm Tips & Tricks".
 ]
 )
-
 // #align(horizon + center)[
 // Your project is now setup properly!
 
@@ -2140,7 +2141,11 @@ export OMP_NUM_THREADS=1   # <-- Simple solution!
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK   # <-- Better!
 ```
 
-
+== Slurm MCP
+#align(center)[
+  #image("images/slurm_mcp.png", height: 90%)
+  https://github.com/mila-iqia/slurm_mcp
+]
 
 == Research Template Repository <research_template>
 
