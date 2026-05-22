@@ -1,1 +1,1 @@
-{"pdfpcFormat":2,"disableMarkdown":false,"noteFontSize":20,"pages":[{"idx":0,"label":"1","overlay":0,"note":"This is some text.\n (TEST TEST)\n"},{"idx":12,"label":"13","overlay":0,"note":""}]}
+{"pdfpcFormat":2,"savedSlide":48,"disableMarkdown":false,"noteFontSize":20,"pages":[{"idx":0,"label":"1","overlay":0,"note":"This is some text.\n (TEST TEST)\n"},{"idx":9,"label":"10","overlay":0,"note":"mila code repos/imagenet_example --cluster=vulcan --salloc --gpus-per-task=1 --mem=32G --time=03:00:00 --cpus-per-task=8"}]}
