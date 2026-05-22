@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you enjoyed this presentation or reference some of it in your work, please cite it as below."
+authors:
+  - family-names: "Normandin"
+    given-names: "Fabrice"
+title: "Efficient Research on Slurm Clusters"
+version: 1.0.0
+date-released: 2026-05-22
+url: "https://github.com/lebrice/upper_bound_2026_slides"
