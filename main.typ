@@ -812,6 +812,35 @@ Large jobs can take a long time to schedule!
 
 ➡️ Flexible job layout → faster scheduling!
 
+#let computenode(
+  // ..free,
+  free0, free1, free2, free3) = {
+  rect(width: auto)[
+    #table(
+      align:(auto, auto, auto, auto),
+      columns: 4,
+      rotate(-90deg, reflow: true, rect([GPU 0], fill: (if free0 {white} else {gray.lighten(10%)} ))),
+      rotate(-90deg, reflow: true, rect([GPU 1], fill: (if free1 {white} else {gray.lighten(10%)} ))),
+      rotate(-90deg, reflow: true, rect([GPU 2], fill: (if free2 {white} else {gray.lighten(10%)} ))),
+      rotate(-90deg, reflow: true, rect([GPU 3], fill: (if free3 {white} else {gray.lighten(10%)} ))),
+      stroke: 1pt,
+    )
+    #columns(2)[#rect[CPUs]#colbreak() #rect[RAM]]
+  ]
+}
+#columns(4)[
+#computenode(true, false, false, true) #colbreak()
+#computenode(false, true, true, true) #colbreak()
+#computenode(true, false, false, false) #colbreak()
+#computenode(true, false, true, true)
+]
+
+
+// #rect([
+//   #columns(4)[
+//     #rect() #colbreak()#rect() #colbreak()#rect() #colbreak()#rect()
+//   ]
+// ])
 
 // *Suggestion*
 
@@ -825,9 +854,9 @@ Large jobs can take a long time to schedule!
 
 #v(3em)
 
-*Recommendations*:
-- use `sbatch --switches=1@3600` and monitor training throughput (with e.g. #ref(<wandb>))
-- Goal: optimize time-to-result! (queue time + runtime)
+// *Recommendations*:
+// - use `sbatch --switches=1@3600` and monitor training throughput (with e.g. #ref(<wandb>))
+// - Goal: optimize time-to-result! (queue time + runtime)
 
 
 == Use Short Jobs / Job _Chunking_
