@@ -809,7 +809,6 @@ python train.py --seed=1 --lr=0.001 --batch-size=128
 == Flexible Jobs <flexible_job_layout>
 // Use a Flexible Job Layout
 Large jobs can take a long time to schedule!
-
 ➡️ Flexible job layout → faster scheduling!
 
 #let computenode(
@@ -828,6 +827,28 @@ Large jobs can take a long time to schedule!
     #columns(2)[#rect[CPUs]#colbreak() #rect[RAM]]
   ]
 }
+
+
+// #align(center)[
+//   #fletcher.diagram(
+//     node-stroke: 0.8pt,
+//     spacing: (0.2em, 1em),
+//     node((0, 0), [#computenode(true, true, true, true)], shape: rect),
+//     node((2, 0), [#computenode(true, true, true, true)], shape: rect),
+//     node((4, 0), [#computenode(true, true, true, true)], shape: rect),
+//     node((6, 0), [#computenode(true, true, true, true)], shape: rect),
+//     node((1, 1), [Switch 1], fill: orange.lighten(60%), shape: rect),
+//     node((5, 1), [Switch 2], fill: orange.lighten(60%), shape: rect),
+//     edge((0, 0), (1, 1), "-"),
+//     edge((2, 0), (1, 1), "-"),
+//     edge((4, 0), (5, 1), "-"),
+//     edge((6, 0), (5, 1), "-"),
+//     edge((1, 1), (5, 1), "-", label: [inter-switch]),
+//   )
+// ]
+
+
+
 #columns(4)[
 #computenode(true, false, false, true) #colbreak()
 #computenode(false, true, true, true) #colbreak()
@@ -835,7 +856,7 @@ Large jobs can take a long time to schedule!
 #computenode(true, false, true, true)
 ]
 
-
+#v(10%)
 // #rect([
 //   #columns(4)[
 //     #rect() #colbreak()#rect() #colbreak()#rect() #colbreak()#rect()
@@ -844,12 +865,11 @@ Large jobs can take a long time to schedule!
 
 // *Suggestion*
 
-- From: `sbatch --nodes=2 --ntasks-per-node=4 --gpus-per-node=4 job.sh`
-  - 2 full nodes, 4 GPUs each — slow to schedule
 
-- To: `sbatch `*`--nodes=1-4 --ntasks=8 --switches=1`*` --gpus-per-task=1 job.sh`
+- From: `sbatch --nodes=2 --gpus-per-node=4 job.sh`
+
+- To: `sbatch `*`--nodes=1-4 --switches=1 --ntasks=8 --gpus-per-task=1`*` job.sh`
   - 8 GPUs across 1-4 nodes, prefer one network switch // (see #ref(<switches>, supplement: "switches"))
-
 
 
 #v(3em)
