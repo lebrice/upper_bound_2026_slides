@@ -102,6 +102,9 @@ Idea: Roughly organized as an _Adventure Book_!
 
 --> *You get to (sometimes) pick where we go!* 😁
 
+
+My email: normandf\@mila.quebec
+
 // - Organized as roughly follow a "_typical_" ML researcher's workflow
 // - Sit back, relax, feel free to ask questions and share your input.
 #align(horizon)[
@@ -1579,9 +1582,15 @@ VSCode auto-forwards the port → localhost:6006 (with #ref(<mila-code>))
 = Thank You!
 
 == Thank You!
+
+
+
+
 #align(center)[
     Slides + Code
-  #linebreak()
+    #linebreak()
+  
+  My email: #underline([normandf\@mila.quebec])
   #image("images/github_qr_code.png", width:30%)
   #link("https://github.com/lebrice/upper_bound_2026_slides", "github.com/lebrice/upper_bound_2026_slides")
 ]
