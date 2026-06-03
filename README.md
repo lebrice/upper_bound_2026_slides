@@ -1,4 +1,7 @@
-# Efficient Research with Slurm Compute Clusters - Upper Bound 2026 Slides
+# Efficient Research with Slurm Compute Clusters
+
+Presented at:
+- Upper Bound 2026
 
 
 Send me an email if you have questions: normandf@mila.quebec
